@@ -271,7 +271,7 @@ The build phase uses a **two-stage pipeline** to extract epistemic relationships
 
 **Stage 1 — Local pre-filter (fast, free)**
 
-A local Ollama model (`gemma4:latest` by default) screens every candidate pair with a simple binary question: *does any epistemic relationship exist here at all?* About half of all candidate pairs are topically similar but not epistemically related — Stage 1 discards these before any API call is made. Runs locally, costs nothing, takes ~15 minutes concurrently.
+A local Ollama model (`gemma4:31b-cloud` by default) screens every candidate pair with a simple binary question: *does any epistemic relationship exist here at all?* About half of all candidate pairs are topically similar but not epistemically related — Stage 1 discards these before any API call is made. Runs locally, costs nothing, takes ~15 minutes concurrently.
 
 **Stage 2 — Async LLM classification**
 
@@ -302,6 +302,8 @@ Confirmed relationships (above confidence threshold) become typed, weighted edge
 | Total wall time | ~15–20 min |
 
 **Checkpoint & resume** — if the build is interrupted, PRISM saves a `.partial.json.gz` checkpoint and resumes automatically from where it left off.
+
+**Stage 1 model check** — PRISM verifies the filter model is available in Ollama before starting. If it isn't, it prints a clear warning listing available models and skips Stage 1 rather than silently doing nothing. Pass `--filter-model <name>` or `filter_model=` to override.
 
 ---
 

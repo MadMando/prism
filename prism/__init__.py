@@ -38,7 +38,7 @@ from .filter import EpistemicFilter
 from .activation import SpreadingActivation, NodeActivation
 from .adapters.lancedb import LanceDBAdapter
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __author__  = "PRISM Contributors"
 
 __all__ = [

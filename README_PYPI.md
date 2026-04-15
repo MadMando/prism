@@ -167,7 +167,9 @@ Each edge carries a **propagation weight** (0.40–0.90) and a **valence** that 
 The graph is built once offline. PRISM uses a **two-stage pipeline** that makes large-corpus builds practical:
 
 **Stage 1 — Local pre-filter (fast, free)**
-A local Ollama model (`gemma4:latest` by default) screens candidate pairs with a binary yes/no question. ~50% of pairs are discarded before any API call. Runs locally, costs nothing.
+A local Ollama model (`gemma4:31b-cloud` by default) screens candidate pairs with a binary yes/no question. ~50% of pairs are discarded before any API call. Runs locally, costs nothing.
+
+PRISM checks the model is available in Ollama before starting and prints a clear warning if not, rather than silently skipping filtering.
 
 **Stage 2 — Async LLM classification**
 Surviving pairs are classified with full type + confidence using 20 concurrent API requests, in batches of 20 pairs each.

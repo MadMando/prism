@@ -67,7 +67,7 @@ def main() -> None:
                         help="Embedding model (must match the model used at ingest time)")
 
     # ── Stage 1: local filter ─────────────────────────────────────────────────
-    parser.add_argument("--filter-model", default="gemma4:latest",
+    parser.add_argument("--filter-model", default="gemma4:31b-cloud",
                         help="Ollama model for stage-1 binary pre-filter")
     parser.add_argument("--filter-batch-size", type=int, default=10,
                         help="Pairs per stage-1 Ollama call")

@@ -56,7 +56,7 @@ class EpistemicFilter:
     def __init__(
         self,
         ollama_url:     str = "http://localhost:11434",
-        model:          str = "gemma4:latest",
+        model:          str = "gemma4:31b-cloud",
         batch_size:     int = 10,
         max_concurrent: int = 5,
         timeout:        int = 120,
@@ -66,6 +66,31 @@ class EpistemicFilter:
         self.batch_size     = batch_size
         self.max_concurrent = max_concurrent
         self.timeout        = timeout
+
+    # ── Model availability check ──────────────────────────────────────────────
+
+    @staticmethod
+    def available_models(ollama_url: str = "http://localhost:11434") -> list[str]:
+        """Return list of model names currently loaded in Ollama."""
+        try:
+            resp = httpx.get(f"{ollama_url.rstrip('/')}/api/tags", timeout=5)
+            resp.raise_for_status()
+            return [m["name"] for m in resp.json().get("models", [])]
+        except Exception:
+            return []
+
+    def check_model(self) -> bool:
+        """Return True if the configured filter model is available in Ollama."""
+        models = self.available_models(self.ollama_url)
+        if self.model not in models:
+            available = ", ".join(models) if models else "none found"
+            print(
+                f"[prism] WARNING: filter model '{self.model}' not found in Ollama.\n"
+                f"[prism]   Available: {available}\n"
+                f"[prism]   Set filter_model= to one of the above, or use --no-filter."
+            )
+            return False
+        return True
 
     # ── Internal async implementation ────────────────────────────────────────
 
@@ -105,7 +130,7 @@ class EpistemicFilter:
                 resp.raise_for_status()
                 raw = resp.json().get("response", "")
 
-                m = re.search(r'\[.*?\]', raw, re.DOTALL)
+                m = re.search(r'\[.*\]', raw, re.DOTALL)
                 if m:
                     items = json.loads(m.group())
                     for item in items:
@@ -177,6 +202,11 @@ class EpistemicFilter:
             Filtered subset of pairs (superset on Ollama failure).
         """
         if not pairs:
+            return pairs
+
+        # Bail early with a clear message if model isn't available
+        if not self.check_model():
+            print("[prism] stage 1 skipped — returning all pairs unfiltered")
             return pairs
 
         n_in = len(pairs)
