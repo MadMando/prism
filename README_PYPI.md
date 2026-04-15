@@ -166,8 +166,8 @@ Each edge carries a **propagation weight** (0.40–0.90) and a **valence** that 
 
 The graph is built once offline. PRISM uses a **two-stage pipeline** that makes large-corpus builds practical:
 
-**Stage 1 — Local pre-filter (fast, free)**
-A local Ollama model (`gemma4:31b-cloud` by default) screens candidate pairs with a binary yes/no question. ~50% of pairs are discarded before any API call. Runs locally, costs nothing.
+**Stage 1 — Ollama pre-filter (fast, free)**
+An Ollama model screens candidate pairs with a binary yes/no question. ~50% of pairs are discarded before any API call. Runs via Ollama, costs nothing.
 
 PRISM checks the model is available in Ollama before starting and prints a clear warning if not, rather than silently skipping filtering.
 
@@ -180,9 +180,27 @@ Surviving pairs are classified with full type + confidence using 20 concurrent A
 |----------|-----------|
 | v1 — sync, batch=5 | ~40 hours |
 | v2 — async only, batch=20 | ~30 minutes |
-| v2 — async + stage-1 filter (default) | **~15–20 minutes** |
+| v2 — async + stage-1 filter (fast model) | **~15–20 minutes** |
 
 **Checkpoint / resume** — if interrupted, the build saves progress automatically and resumes from where it left off.
+
+**Choosing a Stage 1 filter model — use a model under ~10 GB.** Models in this range (e.g. `gemma4:latest`, `llama3.1:8b`, `qwen3.5:latest`) complete each binary call in under a second. Larger models (30B+) take 2–4 seconds per call and negate the benefit of filtering entirely. If no fast model is available, use `--no-filter` and rely on Stage 2 alone (~30 min).
+
+If your Ollama instance is remote, pass its address via `ollama_url`:
+
+```python
+PRISM(
+    ollama_url   = "http://your-ollama-host:11434",
+    embed_model  = "qwen3-embedding:4b",
+    filter_model = "gemma4:latest",
+    ...
+)
+```
+
+Or via CLI:
+```bash
+prism-build --ollama-url http://your-ollama-host:11434 --filter-model gemma4:latest ...
+```
 
 ---
 

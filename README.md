@@ -269,9 +269,9 @@ PRISM works **on top of your existing vector store**. If you already have a Lanc
 
 The build phase uses a **two-stage pipeline** to extract epistemic relationships efficiently:
 
-**Stage 1 — Local pre-filter (fast, free)**
+**Stage 1 — Ollama pre-filter (fast, free)**
 
-A local Ollama model (`gemma4:31b-cloud` by default) screens every candidate pair with a simple binary question: *does any epistemic relationship exist here at all?* About half of all candidate pairs are topically similar but not epistemically related — Stage 1 discards these before any API call is made. Runs locally, costs nothing, takes ~15 minutes concurrently.
+An Ollama model screens every candidate pair with a binary question: *does any epistemic relationship exist here at all?* About half of all candidate pairs are topically similar but not epistemically related — Stage 1 discards these before any API call is made. Runs via Ollama, costs nothing.
 
 **Stage 2 — Async LLM classification**
 
@@ -287,13 +287,13 @@ Confirmed relationships (above confidence threshold) become typed, weighted edge
 |----------|---------|-----------|
 | v1 — sync, batch=5 | ~10,000 | **~40 hours** |
 | v2 — async, batch=20, no filter | ~2,500 | **~30 minutes** |
-| v2 — async + stage-1 filter (default) | ~1,250 | **~15–20 minutes** |
+| v2 — async + stage-1 filter (fast model) | ~1,250 | **~15–20 minutes** |
 
 **Cost estimate (30k-chunk corpus, v2 pipeline):**
 
 | Item | Estimate |
 |------|----------|
-| Stage 1 Ollama calls (local, free) | ~5,000 |
+| Stage 1 Ollama calls (free) | ~5,000 |
 | Stage 2 LLM calls after filter (batch=20) | ~1,250 |
 | Input tokens | ~12M–18M |
 | Output tokens | ~2M–4M |
@@ -304,6 +304,49 @@ Confirmed relationships (above confidence threshold) become typed, weighted edge
 **Checkpoint & resume** — if the build is interrupted, PRISM saves a `.partial.json.gz` checkpoint and resumes automatically from where it left off.
 
 **Stage 1 model check** — PRISM verifies the filter model is available in Ollama before starting. If it isn't, it prints a clear warning listing available models and skips Stage 1 rather than silently doing nothing. Pass `--filter-model <name>` or `filter_model=` to override.
+
+---
+
+## Choosing a Stage 1 Filter Model
+
+Stage 1 only pays off if the filter model is **fast**. The goal is a binary yes/no decision per pair in well under a second — if your model is slower than the API you're filtering for, skip Stage 1 entirely with `--no-filter`.
+
+**Rule of thumb: use a model under ~10 GB.** On typical hardware these complete in 0.2–0.8 seconds per call. Models above 20–30 GB (especially cloud-streamed ones) can take 2–4 seconds per call, making Stage 1 slower than it saves.
+
+**Good filter model choices:**
+
+| Model | Size | Notes |
+|-------|------|-------|
+| `gemma4:latest` | 9.6 GB | Fast, good binary classification |
+| `llama3.1:8b` | 4.9 GB | Widely available, very fast |
+| `qwen3.5:latest` | 6.6 GB | Strong instruction following |
+| `gemma4:e4b` | 9.6 GB | Efficient 4-bit quantized |
+
+**Avoid as filter models:** 30B+ models (`gemma4:31b`, `llama3.1:70b`, etc.) — their per-call latency exceeds the API savings.
+
+**If your Ollama server is remote** (not localhost), point `ollama_url` at it:
+
+```python
+p = PRISM(
+    ollama_url    = "http://your-ollama-host:11434",  # remote Ollama
+    embed_model   = "qwen3-embedding:4b",             # must match your ingest-time model
+    filter_model  = "gemma4:latest",                  # fast model for Stage 1
+    ...
+)
+```
+
+Or via CLI:
+```bash
+prism-build \
+    --ollama-url    http://your-ollama-host:11434 \
+    --filter-model  gemma4:latest \
+    ...
+```
+
+**No suitable model? Skip Stage 1:**
+```bash
+prism-build --no-filter ...   # async Stage 2 only, ~30 min for 50k pairs
+```
 
 ---
 
