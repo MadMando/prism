@@ -317,12 +317,12 @@ Stage 1 only pays off if the filter model is **fast**. The goal is a binary yes/
 
 | Model | Size | Notes |
 |-------|------|-------|
-| `gemma4:latest` | 9.6 GB | Fast, good binary classification |
-| `llama3.1:8b` | 4.9 GB | Widely available, very fast |
+| `llama3.1:8b` | 4.9 GB | **Recommended default** — fast, widely available, strong instruction following |
+| `llama3.2:3b` | 2.0 GB | Faster still, good for binary yes/no |
 | `qwen3.5:latest` | 6.6 GB | Strong instruction following |
-| `gemma4:e4b` | 9.6 GB | Efficient 4-bit quantized |
+| `gemma3:4b` | 3.3 GB | Lightweight, accurate |
 
-**Avoid as filter models:** 30B+ models (`gemma4:31b`, `llama3.1:70b`, etc.) — their per-call latency exceeds the API savings.
+**Avoid as filter models:** models above ~6 GB — at that size, per-call latency often exceeds the API savings, especially over a network connection. Cloud-streamed models (`*:cloud`, `*:1t`) are never suitable.
 
 **If your Ollama server is remote** (not localhost), point `ollama_url` at it:
 

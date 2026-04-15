@@ -184,7 +184,7 @@ Surviving pairs are classified with full type + confidence using 20 concurrent A
 
 **Checkpoint / resume** — if interrupted, the build saves progress automatically and resumes from where it left off.
 
-**Choosing a Stage 1 filter model — use a model under ~10 GB.** Models in this range (e.g. `gemma4:latest`, `llama3.1:8b`, `qwen3.5:latest`) complete each binary call in under a second. Larger models (30B+) take 2–4 seconds per call and negate the benefit of filtering entirely. If no fast model is available, use `--no-filter` and rely on Stage 2 alone (~30 min).
+**Choosing a Stage 1 filter model — use a model under ~5 GB.** Small, fast models (`llama3.1:8b`, `llama3.2:3b`, `gemma3:4b`) complete each binary call in under a second. Models above ~6 GB — especially over a network connection — can take 2–4 seconds per call and negate the benefit of filtering entirely. If no fast model is available, use `--no-filter` and rely on Stage 2 alone (~30 min).
 
 If your Ollama instance is remote, pass its address via `ollama_url`:
 
@@ -192,14 +192,14 @@ If your Ollama instance is remote, pass its address via `ollama_url`:
 PRISM(
     ollama_url   = "http://your-ollama-host:11434",
     embed_model  = "qwen3-embedding:4b",
-    filter_model = "gemma4:latest",
+    filter_model = "llama3.1:8b",   # fast model on your Ollama server
     ...
 )
 ```
 
 Or via CLI:
 ```bash
-prism-build --ollama-url http://your-ollama-host:11434 --filter-model gemma4:latest ...
+prism-build --ollama-url http://your-ollama-host:11434 --filter-model llama3.1:8b ...
 ```
 
 ---

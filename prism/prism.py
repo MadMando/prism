@@ -68,7 +68,7 @@ class PRISM:
         batch_size:     int   = 20,        # v2 default: 20 (was 5)
         max_concurrent: int   = 20,        # v2: async concurrent requests
         # ── Stage 1 filter settings ───────────────────────────────────
-        filter_model:         str = "gemma4:latest",  # fast Ollama model for Stage 1 pre-filter
+        filter_model:         str = "llama3.1:8b",  # fast Ollama model for Stage 1 pre-filter
         filter_batch_size:    int = 10,
         filter_max_concurrent:int = 5,
         # ── Retrieval settings ────────────────────────────────────────
