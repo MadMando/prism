@@ -149,9 +149,9 @@ p = PRISM(
 )
 
 p.build(
-    k_neighbors       = 8,     # semantic neighbours per chunk to examine
-    cross_source_only = True,  # only extract inter-document relationships (recommended)
-    max_pairs         = 50_000 # cap for testing; omit for full build
+    k_neighbors       = 8,      # semantic neighbours per chunk to examine
+    cross_source_only = False,  # False recommended — see note below
+    max_pairs         = 50_000  # cap for testing; omit for full build
 )
 ```
 
@@ -162,8 +162,14 @@ prism-build \
     --lancedb-path /path/to/lancedb \
     --graph-path   /path/to/prism_graph.json.gz \
     --llm-api-key  $OPENAI_API_KEY \
-    --max-pairs    50000
+    --all-sources
 ```
+
+> **`cross_source_only` vs `all-sources`**
+>
+> The default (`cross_source_only=True` / no `--all-sources` flag) only extracts edges *between* different source documents. This sounds conservative but in practice leaves most intra-book relationships unextracted — a 5,000-chunk book like DMBOK has hundreds of internal `supports`/`derives_from`/`specializes` connections that the graph will never see.
+>
+> **Use `cross_source_only=False` (pass `--all-sources`)** for richer graphs. On a 30k-chunk corpus, this roughly doubles candidate pairs and produces 3–5× more edges, making the epistemic buckets (SUPPORTING, QUALIFYING, CONTRASTING) fire on far more queries.
 
 ### 2. Retrieve
 
@@ -434,8 +440,14 @@ The `confidence` values returned by the LLM are self-reported estimates, not cal
 **Retrieval quality can degrade with noisy edges.**
 If the graph contains many false-positive edges, spreading activation will propagate to irrelevant nodes. This produces worse results than pure vector search. Monitor your graph's edge yield rate and edge type distribution after building.
 
-**Cross-source assumption.**
-PRISM is designed for corpora with multiple distinct sources (documents, books, standards, frameworks). The `cross_source_only=True` default optimises for inter-document relationships. Single-source corpora will see fewer extracted edges and less epistemic structure.
+**`cross_source_only=True` produces sparse graphs on multi-book corpora.**
+Setting `cross_source_only=True` skips all chunk pairs from the same source document. This seems conservative and clean, but in practice it misses the majority of valuable epistemic relationships. A large book like DMBOK (5,940 chunks) contains hundreds of intra-chapter `supports`, `derives_from`, and `specializes` relationships that are never extracted when same-source pairs are excluded.
+
+In a real-world test on a 30k-chunk governance corpus (DMBOK + 2 governance books + erwin docs):
+- `cross_source_only=True`, k=8: **3,571 edges**, ~51% of chunks unconnected — graph rarely fires on queries
+- `cross_source_only=False`, k=8: significantly more edges, more queries reach SUPPORTING/QUALIFYING buckets
+
+**Recommendation: use `cross_source_only=False` for most corpora.** Only use `True` if your sources are genuinely independent and you specifically want to suppress intra-document structure.
 
 **Build is slow and LLM-dependent.**
 The one-time graph build requires thousands of LLM API calls and takes hours for large corpora. There is currently no incremental update — adding new documents requires a rebuild (or manual edge addition).

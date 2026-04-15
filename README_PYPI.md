@@ -87,8 +87,10 @@ p = PRISM(
     llm_api_key   = "sk-...",
 )
 
-p.build(k_neighbors=8, cross_source_only=True)
+p.build(k_neighbors=8, cross_source_only=False)
 ```
+
+> **Tip:** Use `cross_source_only=False` (the recommended default). Setting it to `True` skips intra-document pairs and leaves most epistemic relationships unextracted — on a 30k-chunk corpus this can cut edge count by 3–5×, making the graph too sparse to add value over plain vector search.
 
 Or via the CLI:
 
@@ -96,7 +98,8 @@ Or via the CLI:
 prism-build \
     --lancedb-path /path/to/lancedb \
     --graph-path   /path/to/prism_graph.json.gz \
-    --llm-api-key  $OPENAI_API_KEY
+    --llm-api-key  $OPENAI_API_KEY \
+    --all-sources
 ```
 
 ### 2. Retrieve
