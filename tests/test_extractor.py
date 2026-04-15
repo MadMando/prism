@@ -4,7 +4,6 @@ Tests for prism.extractor — JSON parsing, confidence filtering, batch handling
 These tests cover the parsing and validation logic only — no live API calls.
 """
 
-import pytest
 from prism.extractor import EpistemicExtractor
 from prism.edges import EpistemicEdgeType
 

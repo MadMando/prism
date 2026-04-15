@@ -4,8 +4,7 @@ Tests for prism.retriever — fallback behaviour, bucketing, top_k enforcement.
 All tests mock the LanceDB adapter so no vector store is required.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from prism.retriever import PRISMRetriever
 from prism.graph import EpistemicGraph

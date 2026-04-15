@@ -2,8 +2,7 @@
 Tests for prism.result — EpistemicChunk, EpistemicResult, formatting, bucketing.
 """
 
-import pytest
-from prism.result import EpistemicResult, EpistemicChunk, ActivationPath
+from prism.result import EpistemicResult, EpistemicChunk
 from prism.edges import EpistemicEdgeType
 
 

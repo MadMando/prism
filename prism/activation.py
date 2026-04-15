@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .edges import EpistemicEdgeType, PROPAGATION_WEIGHTS, EDGE_VALENCE, EdgeValence
+from .edges import EpistemicEdgeType, EDGE_VALENCE, EdgeValence
 from .graph import EpistemicGraph
 from .result import ActivationPath
 

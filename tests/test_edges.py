@@ -2,7 +2,6 @@
 Tests for prism.edges — epistemic edge taxonomy, propagation weights, valence.
 """
 
-import pytest
 from prism.edges import EpistemicEdgeType, PROPAGATION_WEIGHTS, EDGE_VALENCE, EdgeValence
 
 

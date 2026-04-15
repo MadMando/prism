@@ -8,7 +8,6 @@ Delegates to scripts/build_graph.py logic.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 
@@ -118,11 +117,11 @@ def main() -> None:
 
     print()
     print("[prism-build] Next steps:")
-    print(f"[prism-build]   from prism import PRISM")
+    print("[prism-build]   from prism import PRISM")
     print(f"[prism-build]   p = PRISM(lancedb_path=..., graph_path={str(graph_path)!r}, ...)")
-    print(f"[prism-build]   p.load_graph()")
-    print(f"[prism-build]   result = p.retrieve('your question')")
-    print(f"[prism-build]   print(result.format_for_llm())")
+    print("[prism-build]   p.load_graph()")
+    print("[prism-build]   result = p.retrieve('your question')")
+    print("[prism-build]   print(result.format_for_llm())")
 
 
 if __name__ == "__main__":

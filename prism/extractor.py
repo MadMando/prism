@@ -176,7 +176,7 @@ class EpistemicExtractor:
         try:
             raw = self._chat(messages)
             return self._parse_single(raw, id_a, id_b)
-        except Exception as e:
+        except Exception:
             return None
 
     def _parse_single(

@@ -16,7 +16,7 @@ from .activation import SpreadingActivation, classify_activation
 from .adapters.lancedb import LanceDBAdapter
 from .edges import EdgeValence
 from .graph import EpistemicGraph
-from .result import ActivationPath, EpistemicChunk, EpistemicResult
+from .result import EpistemicChunk, EpistemicResult
 
 
 class PRISMRetriever:

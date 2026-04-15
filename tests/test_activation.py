@@ -2,7 +2,6 @@
 Tests for prism.activation — SpreadingActivation engine and convergence scoring.
 """
 
-import pytest
 from prism.graph import EpistemicGraph
 from prism.edges import EpistemicEdgeType, EdgeValence
 from prism.activation import SpreadingActivation, classify_activation, NodeActivation

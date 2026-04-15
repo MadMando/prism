@@ -227,7 +227,7 @@ class LanceDBAdapter:
         """
         self._ensure_connected()
 
-        print(f"[prism] loading all chunks for candidate generation ...")
+        print("[prism] loading all chunks for candidate generation ...")
         all_rows = self._table.to_pandas()[
             ["id", "source", "page", "section", "text", "vector"]
         ].to_dict("records")

@@ -136,10 +136,10 @@ class PRISM:
         """
         if not force and self.graph_path.exists():
             print(f"[prism] graph already exists at {self.graph_path}")
-            print(f"[prism] use force=True to rebuild, or load_graph() to use existing")
+            print("[prism] use force=True to rebuild, or load_graph() to use existing")
             return self.load_graph()
 
-        print(f"[prism] ── BUILD START ─────────────────────────────────────")
+        print("[prism] ── BUILD START ─────────────────────────────────────")
         self.adapter.connect()
 
         # Step 1: Populate nodes
@@ -178,7 +178,7 @@ class PRISM:
         )
 
         stats = graph.stats()
-        print(f"[prism] ── BUILD COMPLETE ───────────────────────────────────")
+        print("[prism] ── BUILD COMPLETE ───────────────────────────────────")
         print(f"[prism]   nodes:  {stats['n_nodes']:,}")
         print(f"[prism]   edges:  {stats['n_edges']:,}")
         print(f"[prism]   types:  {stats['edge_types']}")
