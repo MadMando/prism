@@ -6,7 +6,8 @@
 
 *Epistemic Graph RAG with Spreading Activation*
 
-[![PyPI](https://img.shields.io/badge/pypi-coming_soon-orange?style=flat-square)](https://pypi.org/project/prism-rag/)
+[![PyPI](https://img.shields.io/pypi/v/prism-rag?style=flat-square&color=blue)](https://pypi.org/project/prism-rag/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/prism-rag?style=flat-square&color=blue)](https://pypi.org/project/prism-rag/)
 [![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
@@ -390,7 +391,6 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 - [ ] Additional vector store adapters (Chroma, Qdrant, Weaviate, pgvector)
 - [ ] Graph visualisation (`prism-viz` CLI — exports to Gephi / D3)
 - [ ] Export to Neo4j / NetworkX formats
-- [ ] PyPI release (`pip install prism-rag`)
 
 ---
 
