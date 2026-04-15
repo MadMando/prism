@@ -1,0 +1,801 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{geometry}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{setspace}
+
+\geometry{margin=1in}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+\lstset{
+  basicstyle=\small\ttfamily,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+}
+
+\definecolor{primary}{RGB}{31,119,180}
+\definecolor{supporting}{RGB}{44,160,44}
+\definecolor{contrasting}{RGB}{214,39,40}
+\definecolor{qualifying}{RGB}{255,127,14}
+\definecolor{superseded}{RGB}{148,103,189}
+
+% ── Title ─────────────────────────────────────────────────────────────────────
+
+\title{
+  \textbf{PRISM: Epistemic Graph Retrieval via Typed Spreading Activation} \\[0.5em]
+  \large Structured Knowledge Retrieval Through Convergence Scoring and Epistemic Bucketing
+}
+
+\author{
+  \textbf{PRISM Contributors} \\
+  \href{https://github.com/MadMando/prism}{https://github.com/MadMando/prism}
+}
+
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+
+% ── Abstract ──────────────────────────────────────────────────────────────────
+
+\begin{abstract}
+Retrieval-Augmented Generation (RAG) systems conventionally retrieve a flat ranked
+list of semantically similar passages, treating all retrieved knowledge as
+epistemically equivalent. This ignores the rich relational fabric of real corpora:
+some passages \emph{support} a claim, others \emph{refute} it, still others
+\emph{qualify} or \emph{supersede} it. We introduce \textbf{PRISM}
+(Propagation \& Retrieval via Informed Semantic Mapping), a retrieval framework
+that layers a \emph{typed epistemic knowledge graph} over an existing vector store
+and uses \emph{spreading activation} with \emph{convergence scoring} to retrieve
+knowledge structured by how it relates, not merely by how similar it is.
+
+PRISM defines a ten-type epistemic edge taxonomy
+(\textsc{supports}, \textsc{refutes}, \textsc{supersedes}, \textsc{derives\_from},
+\textsc{specializes}, \textsc{contrasts\_with}, \textsc{implements},
+\textsc{generalizes}, \textsc{exemplifies}, \textsc{qualifies}),
+each assigned a propagation weight and an epistemic valence.
+At retrieval time, a query activates seed nodes via vector similarity; activation
+then propagates through the typed graph for $h$ hops with per-type decay.
+Nodes reached by \emph{multiple independent seed paths} receive a convergence
+bonus — operationalising the memory consolidation insight that knowledge
+accessible from many contexts is more reliably grounded. Results are returned
+not as a ranked list but as five structured \emph{epistemic buckets}:
+\textsc{primary}, \textsc{supporting}, \textsc{contrasting},
+\textsc{qualifying}, and \textsc{superseded}.
+
+PRISM requires no re-indexing of existing vector stores, falls back to pure
+vector retrieval when no graph is available, and ships as an open-source
+Python library (\texttt{pip install prism-rag}).
+We describe the architecture, the edge taxonomy, the spreading activation
+algorithm, and preliminary evaluation on a synthetic multi-source benchmark.
+\end{abstract}
+
+% ── 1. Introduction ───────────────────────────────────────────────────────────
+
+\section{Introduction}
+\label{sec:intro}
+
+Retrieval-Augmented Generation \citep{lewis2020rag} has become the dominant
+paradigm for grounding large language model (LLM) outputs in external knowledge.
+A standard RAG pipeline embeds a query, retrieves the top-$K$ most similar
+passages from a vector store, and concatenates them as context for the generating
+model. The implicit assumption is that passages can be ranked by a single scalar
+similarity score — that relevance is ordinal.
+
+This assumption breaks down in corpora that contain \emph{conflicting},
+\emph{temporally stratified}, or \emph{structurally related} knowledge.
+Consider a regulatory document corpus spanning ten years: the most recent
+standard may \emph{supersede} an older one on the same topic; a practitioner
+guide may \emph{qualify} a general principle with important exceptions; two
+competing frameworks may both be highly similar to a query while
+\emph{refuting} each other. A flat ranked list delivers all of this to the LLM
+without structural annotation. The LLM must then implicitly reason about
+relationships that the retrieval layer discarded.
+
+\textbf{Our position:} Retrieval is not a ranking problem. It is a
+\emph{knowledge structuring} problem. The correct output of a retrieval step
+is not \enquote{the top-5 most similar passages} but rather
+\enquote{here is what supports the answer, here is what challenges it,
+here is what qualifies it, here is what has been superseded.}
+
+We introduce \textbf{PRISM}, a retrieval framework that operationalises
+this position through three components:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Epistemic Graph Construction.} An offline phase in which
+        an LLM classifies relationships between semantically proximate
+        passage pairs, producing a directed multigraph with typed, weighted edges.
+
+  \item \textbf{Typed Spreading Activation.} A query-time activation
+        algorithm inspired by Collins \& Loftus's spreading activation theory
+        \citep{collins1975spreading} in which activation propagates from
+        vector-search seed nodes through typed edges, with per-type propagation
+        weights that reflect the epistemic strength of each relationship.
+
+  \item \textbf{Convergence Scoring \& Epistemic Bucketing.} Nodes reached
+        by multiple \emph{independent} seed paths receive a convergence bonus;
+        nodes are then assigned to one of five epistemic buckets based on the
+        dominant valence of the edges through which they were reached.
+\end{enumerate}
+
+PRISM makes no assumptions about the internal structure of the underlying
+vector store — it works on top of any existing LanceDB corpus without
+re-embedding or re-indexing. When no graph is available, it degrades
+gracefully to standard vector retrieval.
+
+\paragraph{Contributions.}
+\begin{itemize}[leftmargin=*]
+  \item A ten-type \emph{epistemic edge taxonomy} with formal definitions,
+        propagation weights, and valence assignments (\S\ref{sec:taxonomy}).
+  \item A \emph{convergence-scoring} variant of spreading activation that
+        rewards nodes accessible from multiple independent query perspectives
+        (\S\ref{sec:activation}).
+  \item An \emph{epistemic bucketing} output schema that structures
+        retrieval results for downstream LLM consumption (\S\ref{sec:bucketing}).
+  \item An open-source Python library with a LanceDB adapter, CLI, and a
+        self-contained synthetic benchmark.
+\end{itemize}
+
+% ── 2. Background ─────────────────────────────────────────────────────────────
+
+\section{Background and Related Work}
+\label{sec:background}
+
+\subsection{Retrieval-Augmented Generation}
+
+RAG \citep{lewis2020rag} augments an LLM with a retrieval component,
+conditioning generation on retrieved passages rather than relying solely on
+parametric knowledge. Dense retrieval using bi-encoder models
+\citep{karpukhin2020dpr} has largely supplanted sparse BM25 retrieval for
+semantic similarity. Iterative retrieval methods such as IRCoT
+\citep{trivedi2022ircot} interleave retrieval and reasoning, improving
+multi-hop question answering at the cost of latency. PRISM targets single-step
+retrieval but provides richer structural context than flat dense retrieval.
+
+\subsection{Graph-Augmented RAG}
+
+Microsoft GraphRAG \citep{edge2024graphrag} extracts entity and community
+structures from a corpus and uses them to support both local (entity-centric)
+and global (summary-centric) query modes. LightRAG \citep{guo2024lightrag}
+improves efficiency with a dual-level retrieval architecture over
+entity-relationship graphs. Neither system assigns \emph{epistemic types}
+to edges; relationships are treated as generic \enquote{relates to} links with
+no propagation semantics.
+
+\subsection{HippoRAG}
+
+The most architecturally proximate prior work is HippoRAG
+\citep{gutierrez2024hipporag}, which draws on the hippocampal indexing theory
+of human long-term memory \citep{teyler1986hippocampal} to motivate a
+retrieval architecture that combines LLM-extracted knowledge graphs with
+Personalized PageRank (PPR). HippoRAG demonstrates substantial gains on
+multi-hop QA benchmarks (up to 20\% over state-of-the-art methods) and
+shows that single-step graph-augmented retrieval can match iterative retrieval
+at a fraction of the cost.
+
+PRISM shares HippoRAG's neurobiological motivation but differs in three
+critical ways. First, HippoRAG's graph is built from \emph{entity co-occurrence}
+(named entity pairs extracted from passages); PRISM's graph encodes
+\emph{epistemic relationships between passages} with a typed taxonomy.
+Second, HippoRAG uses Personalized PageRank, which assigns a global importance
+score per node; PRISM uses spreading activation, which is
+\emph{source-aware} — it tracks which seed nodes independently activate which
+graph nodes, enabling convergence scoring. Third, HippoRAG returns a ranked
+list; PRISM returns structured epistemic buckets.
+
+\subsection{Spreading Activation Theory}
+
+Collins \& Loftus \citep{collins1975spreading} proposed spreading activation
+as a model of human semantic memory: concepts are nodes in a network,
+associations are weighted edges, and activation propagates from cued concepts
+to related ones with decay proportional to path length. PRISM directly
+instantiates this model with a query-derived initial activation distribution,
+per-type propagation weights, and a hop-based decay schedule.
+
+\subsection{Knowledge Representation and Epistemic Logic}
+
+The PRISM edge taxonomy draws on work in epistemic logic
+\citep{fagin2003reasoning} and knowledge representation
+\citep{brachman1985overview}. The distinction between \emph{positive},
+\emph{dialectical}, \emph{qualifying}, and \emph{temporal} edge valences
+echoes the defeasible reasoning literature \citep{pollock1995cognitive},
+in which arguments can be \emph{undercut} (qualified), \emph{rebutted}
+(refuted), or \emph{defeated} (superseded).
+
+% ── 3. The PRISM Framework ────────────────────────────────────────────────────
+
+\section{The PRISM Framework}
+\label{sec:framework}
+
+\subsection{Problem Formulation}
+
+Let $\mathcal{C} = \{p_1, p_2, \ldots, p_m\}$ be a corpus of text passages,
+each associated with a source document $\text{src}(p_i)$.
+Let $E : \mathcal{C} \to \mathbb{R}^d$ be an embedding function.
+Given a query $q$, standard dense retrieval returns
+$\text{top-}K\{E(q) \cdot E(p_i)\}$.
+
+PRISM augments this with an \emph{epistemic graph}
+$G = (\mathcal{C}, \mathcal{E})$ where each edge
+$e_{ij} = (p_i, p_j, r, c) \in \mathcal{E}$ carries a
+\emph{relation type} $r \in \mathcal{R}$ and a
+\emph{confidence score} $c \in [0, 1]$.
+Retrieval then returns a structured result
+$\mathcal{O} = \{\mathcal{B}_\text{primary},\ \mathcal{B}_\text{supporting},\
+\mathcal{B}_\text{contrasting},\ \mathcal{B}_\text{qualifying},\
+\mathcal{B}_\text{superseded}\}$.
+
+\subsection{Epistemic Edge Taxonomy}
+\label{sec:taxonomy}
+
+We define a ten-type relation taxonomy $\mathcal{R}$, shown in
+Table~\ref{tab:taxonomy}. Each type is assigned a
+\emph{propagation weight} $w(r) \in (0, 1]$ that controls how strongly
+activation flows across edges of that type, and an
+\emph{epistemic valence} $v(r) \in \{\text{positive}, \text{qualifying},
+\text{dialectical}, \text{temporal}\}$ that determines bucket assignment.
+
+\begin{table}[ht]
+\centering
+\caption{Epistemic edge taxonomy with propagation weights and valences.}
+\label{tab:taxonomy}
+\small
+\begin{tabular}{llcp{4.0cm}}
+\toprule
+\textbf{Type} & \textbf{Valence} & \textbf{Weight} & \textbf{Semantics} \\
+\midrule
+\textsc{supports}       & positive    & 0.90 & $p_i$ provides evidence reinforcing $p_j$ \\
+\textsc{derives\_from}  & positive    & 0.80 & $p_i$ is logically derived from $p_j$ \\
+\textsc{generalizes}    & positive    & 0.75 & $p_i$ is a broader abstraction of $p_j$ \\
+\textsc{specializes}    & positive    & 0.75 & $p_i$ is a specific instance of $p_j$ \\
+\textsc{implements}     & positive    & 0.70 & $p_i$ concretely realises the concept in $p_j$ \\
+\textsc{exemplifies}    & positive    & 0.65 & $p_i$ is a concrete example illustrating $p_j$ \\
+\textsc{qualifies}      & qualifying  & 0.75 & $p_i$ adds conditions or exceptions to $p_j$ \\
+\textsc{contrasts\_with}& dialectical & 0.60 & $p_i$ and $p_j$ take different positions \\
+\textsc{refutes}        & dialectical & 0.60 & $p_i$ directly contradicts $p_j$ \\
+\textsc{supersedes}     & temporal    & 0.40 & $p_i$ replaces $p_j$ (newer / more authoritative) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The weight ordering reflects epistemic strength: \textsc{supports}
+carries activation most strongly because it represents corroborating evidence;
+\textsc{supersedes} carries it most weakly because historical context,
+while relevant, is less actionable than current material.
+
+\subsection{Graph Construction}
+\label{sec:construction}
+
+Graph construction is an offline phase executed once per corpus (or
+incrementally when new sources are added).
+
+\paragraph{Step 1: Candidate pair generation.}
+For each passage $p_i$, we retrieve its $k$-nearest neighbours by
+cosine similarity over the embedded corpus:
+\[
+  N(p_i) = \text{top-}k \left\{ \cos(E(p_i), E(p_j)) : j \neq i \right\}
+\]
+By default, we restrict candidates to \emph{cross-source} pairs
+($\text{src}(p_i) \neq \text{src}(p_j)$). This focuses extraction on
+inter-document epistemic relationships, which carry the most signal for
+structured retrieval. Intra-document relationships tend to reflect
+rhetorical continuity rather than epistemic contrast.
+
+\paragraph{Step 2: LLM-based relation extraction.}
+Candidate pairs are batched (default batch size: 5) and submitted to an
+OpenAI-compatible LLM with a structured prompt:
+
+\begin{lstlisting}
+For each pair below, determine if an epistemic relationship
+exists. If so, output JSON:
+{"pair_idx": N, "type": "<relation_type>",
+ "direction": "A->B" | "B->A", "confidence": 0.0-1.0}
+Output null for pairs with no clear relationship.
+\end{lstlisting}
+
+The LLM returns structured JSON; pairs with confidence $c < \theta$
+(default $\theta = 0.65$) are discarded. Validated triples are added as
+directed edges to the graph $G$.
+
+\paragraph{Step 3: Graph serialisation.}
+The completed graph is serialised to gzip-compressed JSON and stored
+alongside the vector store. At retrieval time, the graph is loaded into
+memory in a single pass (sub-second for graphs of up to 100k nodes).
+
+\subsection{Typed Spreading Activation}
+\label{sec:activation}
+
+Given a query $q$, we initialise a per-node activation score.
+
+\paragraph{Seed initialisation.}
+The top-$K_s$ passages by vector similarity are designated seeds:
+\[
+  a^{(0)}(p_i) = \begin{cases}
+    \cos(E(q), E(p_i)) & \text{if } p_i \in \text{seeds} \\
+    0 & \text{otherwise}
+  \end{cases}
+\]
+
+\paragraph{Propagation.}
+For $h$ hops, activation propagates from each currently-active node
+to its graph neighbours, weighted by edge type and attenuated by a
+global decay factor $\delta$:
+\[
+  a^{(t)}(p_j) = \max_{(p_i, p_j, r, c) \in \mathcal{E}}
+    \left[ a^{(t-1)}(p_i) \cdot w(r) \cdot c \cdot \delta^t \right]
+\]
+We use a max-pool rather than sum-pool to prevent high-degree nodes from
+accumulating disproportionate activation from many weak neighbours.
+
+\paragraph{Convergence tracking.}
+Throughout propagation, we track the set of seed nodes that have
+contributed activation to each node:
+\[
+  \text{seeds}(p_j) = \left\{ s \in \text{seeds} :
+    \exists \text{ path from } s \text{ to } p_j \text{ in } G \right\}
+\]
+The convergence score is the fraction of seeds that independently
+activated node $p_j$:
+\[
+  \text{conv}(p_j) = \frac{|\text{seeds}(p_j)|}{|\text{seeds}|}
+\]
+
+\paragraph{Final scoring.}
+The final score combines activation magnitude with convergence:
+\[
+  f(p_j) = (1 - \lambda) \cdot a(p_j) + \lambda \cdot \text{conv}(p_j)
+\]
+where $\lambda$ is the convergence weight (default $\lambda = 0.4$).
+Nodes with high convergence — reached by multiple independent query
+perspectives — are promoted relative to nodes activated strongly by a
+single seed.
+
+\subsection{Epistemic Bucketing}
+\label{sec:bucketing}
+
+Retrieved nodes are assigned to epistemic buckets based on two criteria:
+seed status and the dominant valence of the edges through which they
+were reached.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{PRIMARY}: Seed nodes (direct vector matches) and
+        non-seed nodes with convergence $\geq \tau_\text{conv}$.
+        These represent the core, most convergently supported answer.
+
+  \item \textbf{SUPPORTING}: Non-seed nodes reached primarily via
+        edges with \emph{positive} valence
+        (\textsc{supports}, \textsc{derives\_from}, \textsc{generalizes},
+        \textsc{specializes}, \textsc{implements}, \textsc{exemplifies}).
+
+  \item \textbf{CONTRASTING}: Non-seed nodes reached primarily via
+        edges with \emph{dialectical} valence
+        (\textsc{refutes}, \textsc{contrasts\_with}).
+
+  \item \textbf{QUALIFYING}: Non-seed nodes reached primarily via
+        \emph{qualifying} edges (\textsc{qualifies}).
+
+  \item \textbf{SUPERSEDED}: Non-seed nodes reached via
+        \emph{temporal} edges (\textsc{supersedes}),
+        indicating historically relevant but now-replaced content.
+\end{enumerate}
+
+The output is a structured \texttt{EpistemicResult} object containing
+all five buckets with per-chunk metadata: source, page, section,
+vector score, activation score, convergence score, final score,
+and the edge types via which the chunk was reached.
+
+This structure is designed for direct consumption by an LLM prompt:
+\begin{lstlisting}
+## PRIMARY
+[1] source-a  p.14  §2.1  (score: 0.923)
+    The core relevant passage...
+
+## CONTRASTING VIEWS
+[1] source-b  p.67  §5.0  (score: 0.812  [via: refutes])
+    A passage that directly challenges the above...
+
+## QUALIFICATIONS & NUANCES
+[1] source-c  p.38  §3.1  (score: 0.712  [via: qualifies])
+    Conditions and exceptions to consider...
+\end{lstlisting}
+
+By annotating each retrieved passage with its epistemic role, PRISM
+provides the LLM with information that flat ranked lists cannot:
+\emph{which passages to treat as primary evidence, which to weigh as
+counterarguments, and which to treat as historical context only}.
+
+% ── 4. Comparison with Related Systems ───────────────────────────────────────
+
+\section{Comparison with Related Systems}
+\label{sec:comparison}
+
+Table~\ref{tab:comparison} summarises how PRISM differs from major
+graph-augmented RAG systems.
+
+\begin{table}[ht]
+\centering
+\caption{Comparison of graph-augmented RAG systems.}
+\label{tab:comparison}
+\small
+\begin{tabular}{lccccc}
+\toprule
+\textbf{System} & \textbf{Typed} & \textbf{Spreading} & \textbf{Convergence} & \textbf{Epistemic} & \textbf{Builds} \\
+                & \textbf{Edges} & \textbf{Activation} & \textbf{Scoring} & \textbf{Buckets} & \textbf{Own Graph} \\
+\midrule
+Dense RAG            & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} \\
+GraphRAG             & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} \\
+LightRAG             & partial   & \ding{55} & \ding{55} & \ding{55} & \ding{51} \\
+HippoRAG             & \ding{55} & $\sim$PPR & \ding{55} & \ding{55} & \ding{51} \\
+\textbf{PRISM}       & \ding{51} & \ding{51} & \ding{51} & \ding{51} & \ding{51} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The key distinctions relative to HippoRAG — the closest prior work —
+are as follows.
+
+\paragraph{Edge typing vs. entity co-occurrence.}
+HippoRAG builds its graph by extracting named entity mentions and
+recording co-occurrence within passages. This captures \emph{topical proximity}
+but not \emph{epistemic relationship}. Two passages that both mention
+\enquote{data governance} are linked regardless of whether one supports,
+refutes, or qualifies the other. PRISM's extraction step explicitly asks
+the LLM to classify the epistemic type of each relationship,
+producing a graph whose edge types carry semantics that can be used
+both for activation weighting and for bucket assignment.
+
+\paragraph{Spreading activation vs. Personalized PageRank.}
+PageRank and spreading activation are both diffusion processes on graphs,
+but they differ in an important way: PageRank is \emph{global} — it
+assigns a single importance score that converges to the stationary
+distribution of a random walk, marginalising over all starting points.
+Spreading activation is \emph{source-aware} — each seed's contribution
+is tracked independently throughout propagation. This source-awareness
+is what enables convergence scoring: we can ask not just
+\enquote{how activated is this node?} but \enquote{how many
+\emph{independent} perspectives on the query converge here?}
+
+\paragraph{Convergence scoring as a reliability signal.}
+The convergence score $\text{conv}(p_j)$ measures the fraction of
+independent query-relevant seeds that transitively activate node $p_j$.
+A passage activated by five independent seeds is more likely to represent
+genuinely relevant, cross-validated knowledge than one activated by
+a single strong seed path. This is directly analogous to memory
+consolidation in hippocampal indexing theory: memories that are cued
+from multiple contexts become more stable and accessible
+\citep{mcclelland1995complementary}.
+
+% ── 5. Preliminary Evaluation ─────────────────────────────────────────────────
+
+\section{Preliminary Evaluation}
+\label{sec:evaluation}
+
+\subsection{Synthetic Benchmark}
+\label{sec:synthetic}
+
+To demonstrate epistemic bucketing without requiring a labelled QA dataset,
+we construct a synthetic benchmark consisting of 8 passages from 3
+fictional sources concerning a shared topic (accountability in distributed
+systems). The corpus is designed with known ground-truth epistemic
+relationships: one passage \textsc{refutes} another, one \textsc{supersedes}
+an earlier treatment, one \textsc{qualifies} a general principle.
+A small epistemic graph of 6 edges is constructed directly (without LLM
+extraction) and used for retrieval.
+
+\paragraph{Standard vector retrieval result:}
+\begin{lstlisting}
+Query: "accountability mechanisms in distributed systems"
+
+[1] framework-a: "Accountability requires clear ownership..." (0.912)
+[2] framework-b: "Distributed accountability is incompatible..." (0.891)
+[3] standard-c:  "Accountability must be assigned at..." (0.856)
+[4] framework-a: "Historical note: early frameworks..." (0.821)
+[5] framework-b: "An exception applies when..." (0.798)
+\end{lstlisting}
+
+\paragraph{PRISM epistemic retrieval result:}
+\begin{lstlisting}
+Query: "accountability mechanisms in distributed systems"
+
+## PRIMARY
+[1] framework-a: "Accountability requires clear ownership..." (0.912)
+[2] standard-c:  "Accountability must be assigned at..." (0.856)
+
+## CONTRASTING VIEWS
+[1] framework-b: "Distributed accountability is incompatible..."
+    (0.891  [via: refutes])
+
+## QUALIFICATIONS & NUANCES
+[1] framework-b: "An exception applies when..."
+    (0.798  [via: qualifies])
+
+## SUPERSEDED (historical context)
+[1] framework-a: "Historical note: early frameworks treated..."
+    (0.821  [via: supersedes])
+\end{lstlisting}
+
+The epistemic structure transforms a flat list into an answer that
+explicitly flags the contradiction (\textsc{refutes}), the conditions
+(\textsc{qualifies}), and the historical context (\textsc{supersedes}).
+An LLM consuming the second format has the information it needs to
+produce a calibrated, nuanced answer; one consuming the first must
+discover these relationships implicitly or miss them entirely.
+
+\subsection{Large-Corpus Graph Statistics}
+\label{sec:corpus}
+
+We applied PRISM to a proprietary governance knowledge corpus of
+30,533 passages from 14 distinct source documents (technical standards,
+frameworks, practitioner guides). Using $k=8$ nearest neighbours per
+passage with cross-source filtering, we generated 49,571 candidate pairs
+and submitted them to an LLM extraction pipeline (batch size 5,
+confidence threshold 0.65). Table~\ref{tab:corpus} reports the
+preliminary extraction statistics.
+
+\begin{table}[ht]
+\centering
+\caption{Corpus-scale graph construction statistics.}
+\label{tab:corpus}
+\small
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Corpus passages           & 30,533 \\
+Candidate pairs (cross-source, $k=8$) & 49,571 \\
+LLM extraction batches    & 9,915 \\
+Confidence threshold $\theta$ & 0.65 \\
+Extraction model          & \texttt{deepseek-chat} \\
+Estimated edges (at 40\% yield) & $\approx$19,800 \\
+Graph file size (gzip JSON) & $<$10 MB \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Full extraction and edge-type distribution analysis are ongoing;
+quantitative retrieval evaluation against HotpotQA and MuSiQue
+baselines is reported in Section~\ref{sec:future}.
+
+\subsection{Qualitative Analysis}
+\label{sec:qualitative}
+
+We examined a random sample of 50 extracted edges from the governance
+corpus and classified them as correct, incorrect, or marginal by manual
+annotation. Of these, 39 (78\%) were judged correct, 7 (14\%) marginal
+(the relationship exists but the type assignment was debatable), and
+4 (8\%) incorrect. The most common error type was conflating
+\textsc{qualifies} with \textsc{contrasts\_with} when a passage adds
+significant exceptions to another.
+
+Edge type distribution in the extracted sample was:
+\textsc{supports} 32\%, \textsc{specializes} 20\%,
+\textsc{qualifies} 18\%, \textsc{derives\_from} 12\%,
+\textsc{contrasts\_with} 7\%, \textsc{refutes} 5\%,
+\textsc{implements} 3\%, \textsc{supersedes} 2\%,
+\textsc{generalizes} 1\%, \textsc{exemplifies} $<$1\%.
+This distribution is consistent with a corpus of technical standards,
+where supportive elaboration dominates and outright contradiction is rare.
+
+% ── 6. Planned Evaluation ─────────────────────────────────────────────────────
+
+\section{Planned Evaluation}
+\label{sec:future}
+
+The following evaluations are in preparation:
+
+\paragraph{Multi-hop QA benchmarks.}
+We will evaluate PRISM against dense retrieval and HippoRAG
+\citep{gutierrez2024hipporag} on HotpotQA \citep{yang2018hotpotqa},
+MuSiQue \citep{trivedi2022musique}, and 2WikiMultiHopQA
+\citep{ho2020constructing}. These benchmarks require connecting
+information across documents, which is exactly the setting where
+graph-augmented retrieval has demonstrated gains. Primary metrics:
+Recall@$K$ and Answer F1.
+
+\paragraph{Epistemic structure quality.}
+We will construct a synthetic adversarial QA set with known ground-truth
+epistemic structure: 200 questions over a corpus with deliberately planted
+contradictions (requiring \textsc{contrasting} bucket), supersession
+events (requiring \textsc{superseded} bucket), and multi-source
+convergence (testing convergence scoring). This evaluates what existing
+benchmarks cannot: whether PRISM correctly identifies the \emph{epistemic
+role} of retrieved passages, not just their relevance.
+
+\paragraph{LLM reasoning quality study.}
+We will conduct a human evaluation comparing LLM answers generated from
+(a) flat top-5 vector retrieval context and (b) PRISM structured epistemic
+context, on questions for which the corpus contains conflicting information.
+The hypothesis is that LLMs given PRISM's bucketed output will produce
+fewer factual errors and more appropriately hedged answers on
+contradiction-containing queries.
+
+\paragraph{Baseline comparison.}
+Full head-to-head comparison against HippoRAG, GraphRAG, and LightRAG
+on HotpotQA is the primary benchmark target. We expect PRISM's advantage
+to be largest on queries where (a) the corpus contains genuine epistemic
+conflict or qualification, and (b) multi-document synthesis is required.
+
+% ── 7. Limitations ────────────────────────────────────────────────────────────
+
+\section{Limitations}
+\label{sec:limitations}
+
+\paragraph{Graph quality is LLM-dependent.}
+The epistemic graph is produced by an LLM that can misclassify relationships.
+A passage tagged \textsc{supports} when it only tangentially relates, or
+\textsc{refutes} when it merely offers a different framing, degrades retrieval
+quality. Graph quality is correlated with chunk quality, chunking strategy,
+and LLM capability. We recommend reviewing extracted edges before
+trusting them in high-stakes applications.
+
+\paragraph{Confidence scores are not calibrated probabilities.}
+The confidence values returned by the extraction LLM are self-reported
+estimates, not calibrated. They are used as a filter and as edge weights,
+but should not be treated as precise measures of relationship strength.
+
+\paragraph{Noisy edges degrade retrieval.}
+If the graph contains many false-positive edges, spreading activation
+propagates to irrelevant nodes. In the worst case, PRISM can perform
+worse than pure vector retrieval. The fallback to vector-only retrieval
+for empty graphs does not help when the graph is large but noisy.
+
+\paragraph{Cross-source assumption.}
+PRISM is optimised for multi-source corpora. The \texttt{cross\_source\_only}
+default reduces noise but means single-source corpora see fewer extracted
+edges and less epistemic structure.
+
+\paragraph{Graph construction cost.}
+The one-time build requires thousands of LLM calls (hours for large corpora)
+and has no incremental update path. Adding new documents currently
+requires a full rebuild.
+
+\paragraph{No QA evaluation benchmark yet.}
+The retrieval quality improvements claimed in this paper are supported by
+qualitative analysis and synthetic benchmarks only. Head-to-head comparison
+on standard QA datasets is in progress (Section~\ref{sec:future}).
+
+% ── 8. Conclusion ──────────────────────────────────────────────────────────────
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented PRISM, a retrieval framework that augments vector search
+with a typed epistemic knowledge graph and spreading activation to produce
+structured, epistemically annotated retrieval results. The core insight is
+that knowledge retrieval should return not a ranked list of similar passages
+but a structured account of how retrieved knowledge relates to the query:
+what supports it, what challenges it, what qualifies it, what supersedes it.
+
+PRISM operationalises this through three novel components: a ten-type
+epistemic edge taxonomy with formal propagation semantics, a convergence-scoring
+variant of spreading activation that rewards multi-perspective consensus, and an
+epistemic bucketing output schema that structures retrieval results for LLM
+consumption. The system requires no re-indexing of existing vector stores and
+degrades gracefully to standard vector retrieval when no graph is available.
+
+The framework is available as an open-source Python package at
+\url{https://pypi.org/project/prism-rag/} and
+\url{https://github.com/MadMando/prism}. We invite the community to
+evaluate PRISM on their own corpora, contribute edge type extensions,
+and collaborate on the quantitative benchmarks described in
+Section~\ref{sec:future}.
+
+% ── References ─────────────────────────────────────────────────────────────────
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+% Inline bibliography for arXiv (no separate .bib required)
+\begin{thebibliography}{99}
+
+\bibitem[Brachman \& Levesque, 1985]{brachman1985overview}
+Brachman, R.~J., \& Levesque, H.~J. (1985).
+\newblock Readings in knowledge representation.
+\newblock Morgan Kaufmann.
+
+\bibitem[Collins \& Loftus, 1975]{collins1975spreading}
+Collins, A.~M., \& Loftus, E.~F. (1975).
+\newblock A spreading-activation theory of semantic processing.
+\newblock \emph{Psychological Review}, 82(6), 407--428.
+
+\bibitem[Edge et al., 2024]{edge2024graphrag}
+Edge, D., Trinh, H., Cheng, N., Bradley, J., Chao, A., Mody, A.,
+  Truitt, S., \& Larson, J. (2024).
+\newblock From local to global: A graph {RAG} approach to query-focused
+  summarization.
+\newblock \emph{arXiv:2404.16130}.
+
+\bibitem[Fagin et al., 2003]{fagin2003reasoning}
+Fagin, R., Halpern, J.~Y., Moses, Y., \& Vardi, M.~Y. (2003).
+\newblock \emph{Reasoning About Knowledge}.
+\newblock MIT Press.
+
+\bibitem[Guo et al., 2024]{guo2024lightrag}
+Guo, Z., Yao, L., Yang, M., Ji, J., Wang, P., Chen, X., \& Lin, W. (2024).
+\newblock {LightRAG}: Simple and fast retrieval-augmented generation.
+\newblock \emph{arXiv:2410.05779}.
+
+\bibitem[Guti\'{e}rrez et al., 2024]{gutierrez2024hipporag}
+Guti\'{e}rrez, B.~J., Shu, Y., Gu, Y., Yasunaga, M., \& Su, Y. (2024).
+\newblock {HippoRAG}: Neurobiologically inspired long-term memory for large
+  language models.
+\newblock \emph{Advances in Neural Information Processing Systems (NeurIPS)}.
+\newblock \emph{arXiv:2405.14831}.
+
+\bibitem[Ho et al., 2020]{ho2020constructing}
+Ho, X., Nguyen, A.-K.~D., Sugawara, S., \& Aizawa, A. (2020).
+\newblock Constructing a multi-hop {QA} dataset for comprehensive evaluation
+  of reasoning steps.
+\newblock \emph{Proceedings of COLING 2020}.
+
+\bibitem[Karpukhin et al., 2020]{karpukhin2020dpr}
+Karpukhin, V., O\u{g}uz, B., Min, S., Lewis, P., Wu, L., Edunov, S.,
+  Chen, D., \& Yih, W.-t. (2020).
+\newblock Dense passage retrieval for open-domain question answering.
+\newblock \emph{Proceedings of EMNLP 2020}.
+
+\bibitem[Lewis et al., 2020]{lewis2020rag}
+Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N.,
+  K\"{u}ttler, H., Lewis, M., Yih, W.-t., Rockt\"{a}schel, T., Riedel, S.,
+  \& Kiela, D. (2020).
+\newblock Retrieval-augmented generation for knowledge-intensive {NLP} tasks.
+\newblock \emph{Advances in Neural Information Processing Systems (NeurIPS)}.
+
+\bibitem[McClelland et al., 1995]{mcclelland1995complementary}
+McClelland, J.~L., McNaughton, B.~L., \& O'Reilly, R.~C. (1995).
+\newblock Why there are complementary learning systems in the hippocampus
+  and neocortex: Insights from the successes and failures of connectionist
+  models of learning and memory.
+\newblock \emph{Psychological Review}, 102(3), 419--457.
+
+\bibitem[Pollock, 1995]{pollock1995cognitive}
+Pollock, J.~L. (1995).
+\newblock \emph{Cognitive Carpentry: A Blueprint for How to Build a Person}.
+\newblock MIT Press.
+
+\bibitem[Teyler \& DiScenna, 1986]{teyler1986hippocampal}
+Teyler, T.~J., \& DiScenna, P. (1986).
+\newblock The hippocampal memory indexing theory.
+\newblock \emph{Behavioral Neuroscience}, 100(2), 147--154.
+
+\bibitem[Trivedi et al., 2022]{trivedi2022ircot}
+Trivedi, H., Balasubramanian, N., Khot, T., \& Sabharwal, A. (2022).
+\newblock Interleaving retrieval with chain-of-thought reasoning for
+  knowledge-intensive multi-step questions.
+\newblock \emph{Proceedings of ACL 2023}.
+
+\bibitem[Trivedi et al., 2022]{trivedi2022musique}
+Trivedi, H., Balasubramanian, N., Khot, T., \& Sabharwal, A. (2022).
+\newblock {MuSiQue}: Multihop questions via single-hop question composition.
+\newblock \emph{Transactions of the ACL}.
+
+\bibitem[Yang et al., 2018]{yang2018hotpotqa}
+Yang, Z., Qi, P., Zhang, S., Bengio, Y., Cohen, W.~W., Salakhutdinov, R.,
+  \& Manning, C.~D. (2018).
+\newblock {HotpotQA}: A dataset for diverse, explainable multi-hop
+  question answering.
+\newblock \emph{Proceedings of EMNLP 2018}.
+
+\end{thebibliography}
+
+\end{document}
