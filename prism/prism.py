@@ -47,16 +47,22 @@ class PRISM:
         self,
         lancedb_path:   str | Path,
         graph_path:     str | Path,
-        ollama_url:     str = "http://100.114.143.109:11434",
-        embed_model:    str = "qwen3-embedding:4b",
         table_name:     str = "knowledge",
-        llm_base_url:   str = "https://api.deepseek.com",
-        llm_model:      str = "deepseek-chat",
+        # ── Embedding: Option A — Ollama (default) ────────────────────
+        ollama_url:     str = "http://localhost:11434",
+        embed_model:    str = "nomic-embed-text",
+        # ── Embedding: Option B — OpenAI-compatible API ───────────────
+        # Set embed_api_key to switch to API mode (ollama_url is ignored)
+        embed_api_url:  Optional[str] = None,   # default: https://api.openai.com/v1/embeddings
+        embed_api_key:  Optional[str] = None,   # e.g. "sk-..."
+        # ── LLM for graph building ────────────────────────────────────
+        llm_base_url:   str = "https://api.openai.com",
+        llm_model:      str = "gpt-4o-mini",
         llm_api_key:    str = "",
-        # Extraction settings
+        # ── Extraction settings ───────────────────────────────────────
         min_confidence: float = 0.65,
         batch_size:     int   = 5,
-        # Retrieval settings
+        # ── Retrieval settings ────────────────────────────────────────
         hops:               int   = 3,
         decay:              float = 0.7,
         seed_top_k:         int   = 20,
@@ -65,10 +71,12 @@ class PRISM:
         self.graph_path = Path(graph_path)
 
         self.adapter = LanceDBAdapter(
-            db_path     = lancedb_path,
-            table_name  = table_name,
-            ollama_url  = ollama_url,
-            embed_model = embed_model,
+            db_path       = lancedb_path,
+            table_name    = table_name,
+            ollama_url    = ollama_url,
+            embed_model   = embed_model,
+            embed_api_url = embed_api_url,
+            embed_api_key = embed_api_key,
         )
 
         self._extractor_kwargs = dict(

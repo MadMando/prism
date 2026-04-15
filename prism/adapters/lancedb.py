@@ -7,6 +7,21 @@ Responsibilities:
   1. Seed activation:  embed query → vector search → initial {node_id: score} map
   2. Candidate pairs:  for graph building, find semantically similar chunk pairs
   3. Chunk hydration:  given a list of node_ids, fetch full chunk data from LanceDB
+
+Embedding providers supported
+------------------------------
+Option A — Ollama (local, default):
+    LanceDBAdapter(ollama_url="http://localhost:11434", embed_model="nomic-embed-text")
+
+Option B — Any OpenAI-compatible embeddings API:
+    LanceDBAdapter(
+        embed_api_url = "https://api.openai.com/v1/embeddings",
+        embed_api_key = "sk-...",
+        embed_model   = "text-embedding-3-small",
+    )
+    Works with: OpenAI, Azure OpenAI, Together AI, Jina, Cohere, any
+    OpenAI-compatible endpoint that accepts {"model": ..., "input": ...}
+    and returns {"data": [{"embedding": [...]}]}.
 """
 
 from __future__ import annotations
@@ -22,27 +37,56 @@ class LanceDBAdapter:
     """
     Connects PRISM to an existing LanceDB knowledge base.
 
+    Embedding provider — choose one:
+
+    Ollama (default, local):
+        ollama_url  = "http://localhost:11434"  (or your remote Ollama host)
+        embed_model = "nomic-embed-text"         (or any model loaded in Ollama)
+
+    OpenAI-compatible API:
+        embed_api_url = "https://api.openai.com/v1/embeddings"
+        embed_api_key = "sk-..."
+        embed_model   = "text-embedding-3-small"
+
+    The model you pass here MUST match the model used when the LanceDB
+    corpus was originally built — dimensions must be identical.
+
     Args:
         db_path:        Path to the LanceDB directory
-        table_name:     Name of the LanceDB table (default "knowledge")
-        ollama_url:     Ollama API base URL for embeddings
-        embed_model:    Embedding model name (must match the model used at ingest time)
-        embed_timeout:  Timeout for embedding requests (seconds)
+        table_name:     LanceDB table name (default "knowledge")
+        ollama_url:     Ollama base URL (used when embed_api_key is not set)
+        embed_model:    Embedding model name
+        embed_api_url:  Full URL for OpenAI-compatible embeddings endpoint
+        embed_api_key:  API key — if set, switches to API mode (ignores ollama_url)
+        embed_timeout:  Request timeout in seconds (default 60)
     """
 
     def __init__(
         self,
-        db_path:       str | Path,
-        table_name:    str = "knowledge",
-        ollama_url:    str = "http://100.114.143.109:11434",
-        embed_model:   str = "qwen3-embedding:4b",
-        embed_timeout: int = 60,
+        db_path:        str | Path,
+        table_name:     str = "knowledge",
+        # Ollama (default)
+        ollama_url:     str = "http://localhost:11434",
+        embed_model:    str = "nomic-embed-text",
+        # OpenAI-compatible API (alternative)
+        embed_api_url:  Optional[str] = None,
+        embed_api_key:  Optional[str] = None,
+        # Shared
+        embed_timeout:  int = 60,
     ):
-        self.db_path      = Path(db_path)
-        self.table_name   = table_name
-        self.ollama_url   = ollama_url.rstrip("/")
-        self.embed_model  = embed_model
+        self.db_path       = Path(db_path)
+        self.table_name    = table_name
+        self.ollama_url    = ollama_url.rstrip("/")
+        self.embed_model   = embed_model
+        self.embed_api_url = embed_api_url
+        self.embed_api_key = embed_api_key
         self.embed_timeout = embed_timeout
+
+        # If an API key is provided, use the API path
+        self._use_api = bool(embed_api_key)
+        if self._use_api and not embed_api_url:
+            # Default to OpenAI if no URL given but key is present
+            self.embed_api_url = "https://api.openai.com/v1/embeddings"
 
         self._db:    Optional[lancedb.DBConnection] = None
         self._table = None
@@ -67,7 +111,13 @@ class LanceDBAdapter:
     # ── Embedding ─────────────────────────────────────────────────────────────
 
     def embed(self, text: str) -> list[float]:
-        """Embed text using Ollama (same model used at ingest time)."""
+        """Embed text using the configured provider (Ollama or API)."""
+        if self._use_api:
+            return self._embed_api(text)
+        return self._embed_ollama(text)
+
+    def _embed_ollama(self, text: str) -> list[float]:
+        """Embed via Ollama (local or remote)."""
         resp = requests.post(
             f"{self.ollama_url}/api/embeddings",
             json={"model": self.embed_model, "prompt": text},
@@ -75,6 +125,20 @@ class LanceDBAdapter:
         )
         resp.raise_for_status()
         return resp.json()["embedding"]
+
+    def _embed_api(self, text: str) -> list[float]:
+        """Embed via any OpenAI-compatible embeddings API."""
+        resp = requests.post(
+            self.embed_api_url,
+            headers={
+                "Authorization": f"Bearer {self.embed_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={"model": self.embed_model, "input": text},
+            timeout=self.embed_timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()["data"][0]["embedding"]
 
     # ── Seed activation ───────────────────────────────────────────────────────
 

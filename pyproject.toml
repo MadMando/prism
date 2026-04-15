@@ -5,10 +5,26 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "prism-rag"
 version = "0.1.0"
-description = "PRISM: Epistemic Graph RAG with Spreading Activation — retrieval that understands how knowledge relates, not just what it says"
+description = "Epistemic Graph RAG with Spreading Activation — retrieval that understands how knowledge relates, not just what it says"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-keywords = ["rag", "knowledge-graph", "epistemic", "spreading-activation", "retrieval"]
+keywords = [
+    "rag", "retrieval", "knowledge-graph", "graph-rag",
+    "epistemic", "spreading-activation", "lancedb", "llm", "nlp"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "networkx>=3.0",
     "lancedb>=0.10",
@@ -22,11 +38,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-asyncio"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio",
+    "black",
+    "ruff",
+    "mypy",
+]
+
+[project.urls]
+Homepage   = "https://github.com/MadMando/prism"
+Repository = "https://github.com/MadMando/prism"
+Issues     = "https://github.com/MadMando/prism/issues"
 
 [project.scripts]
 prism-build = "prism.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where   = ["."]
 include = ["prism*"]
