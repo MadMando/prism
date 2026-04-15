@@ -74,7 +74,7 @@ Three stages:
 | SYNAPSE (2026) | ✅ | ✅ | ❌ | ✅ |
 | **PRISM** | ✅ | ✅ | ✅ | ✅ |
 
-The gap: no existing system classifies graph edges by *epistemic relationship type*. PRISM is the first to combine all four.
+To our knowledge, no open-source retrieval library combines all four of these signals. If you know of one, please open an issue — we'd genuinely like to know.
 
 ---
 
@@ -356,6 +356,30 @@ prism/
 │   └── architecture.svg
 └── pyproject.toml
 ```
+
+---
+
+## Limitations
+
+PRISM is alpha software. These are known constraints you should understand before using it in production:
+
+**Graph quality depends on your corpus and LLM.**
+The epistemic graph is built by asking an LLM to classify relationships between chunk pairs. The LLM can misclassify — a chunk may be tagged `supports` when it actually only tangentially relates, or `refutes` when it merely offers a different framing. Graph quality is correlated with chunk quality, chunking strategy, and the capability of the extraction model. Review extracted edges before trusting them.
+
+**Confidence scores are not ground truth.**
+The `confidence` values returned by the LLM are self-reported estimates, not calibrated probabilities. They are used as a filter (default threshold: 0.65) and as edge weights, but should not be treated as precise measures of relationship strength.
+
+**Retrieval quality can degrade with noisy edges.**
+If the graph contains many false-positive edges, spreading activation will propagate to irrelevant nodes. This produces worse results than pure vector search. Monitor your graph's edge yield rate and edge type distribution after building.
+
+**Cross-source assumption.**
+PRISM is designed for corpora with multiple distinct sources (documents, books, standards, frameworks). The `cross_source_only=True` default optimises for inter-document relationships. Single-source corpora will see fewer extracted edges and less epistemic structure.
+
+**Build is slow and LLM-dependent.**
+The one-time graph build requires thousands of LLM API calls and takes hours for large corpora. There is currently no incremental update — adding new documents requires a rebuild (or manual edge addition).
+
+**No evaluation benchmark yet.**
+We do not currently publish retrieval quality metrics comparing PRISM against standard RAG on standardised QA datasets. The `benchmarks/` directory contains a structural demonstration only.
 
 ---
 

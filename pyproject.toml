@@ -57,3 +57,11 @@ prism-build = "prism.cli:main"
 [tool.setuptools.packages.find]
 where   = ["."]
 include = ["prism*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v --tb=short"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
