@@ -37,7 +37,7 @@ from .extractor import EpistemicExtractor
 from .activation import SpreadingActivation, NodeActivation
 from .adapters.lancedb import LanceDBAdapter
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __author__  = "PRISM Contributors"
 
 __all__ = [
