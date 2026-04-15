@@ -445,7 +445,7 @@ Setting `cross_source_only=True` skips all chunk pairs from the same source docu
 
 In a real-world test on a 30k-chunk governance corpus (DMBOK + 2 governance books + erwin docs):
 - `cross_source_only=True`, k=8: **3,571 edges**, ~51% of chunks unconnected — graph rarely fires on queries
-- `cross_source_only=False`, k=8: significantly more edges, more queries reach SUPPORTING/QUALIFYING buckets
+- `cross_source_only=False`, k=8: **9,989 edges**, same corpus — graph activates supporting/qualifying buckets on most queries
 
 **Recommendation: use `cross_source_only=False` for most corpora.** Only use `True` if your sources are genuinely independent and you specifically want to suppress intra-document structure.
 
