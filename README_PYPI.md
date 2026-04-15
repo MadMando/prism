@@ -162,6 +162,28 @@ Each edge carries a **propagation weight** (0.40–0.90) and a **valence** that 
 
 ---
 
+## Build Performance
+
+The graph is built once offline. PRISM uses a **two-stage pipeline** that makes large-corpus builds practical:
+
+**Stage 1 — Local pre-filter (fast, free)**
+A local Ollama model (`gemma4:latest` by default) screens candidate pairs with a binary yes/no question. ~50% of pairs are discarded before any API call. Runs locally, costs nothing.
+
+**Stage 2 — Async LLM classification**
+Surviving pairs are classified with full type + confidence using 20 concurrent API requests, in batches of 20 pairs each.
+
+**Build time comparison — 30k-chunk corpus, ~50k candidate pairs:**
+
+| Pipeline | Wall Time |
+|----------|-----------|
+| v1 — sync, batch=5 | ~40 hours |
+| v2 — async only, batch=20 | ~30 minutes |
+| v2 — async + stage-1 filter (default) | **~15–20 minutes** |
+
+**Checkpoint / resume** — if interrupted, the build saves progress automatically and resumes from where it left off.
+
+---
+
 ## No Re-embedding Required
 
 PRISM works **on top of your existing vector store**. If you have a LanceDB corpus with embeddings, you don't need to re-index anything.

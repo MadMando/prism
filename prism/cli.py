@@ -2,12 +2,13 @@
 prism.cli
 ---------
 Entry point for the `prism-build` CLI command.
-Delegates to scripts/build_graph.py logic.
+Two-stage async pipeline: local Ollama filter → async LLM extraction.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 
@@ -15,19 +16,35 @@ def main() -> None:
     """
     Build (or rebuild) a PRISM epistemic graph from an existing LanceDB.
 
+    Two-stage pipeline (v2):
+      Stage 1 — local Ollama model pre-filters candidate pairs (~50% reduction)
+      Stage 2 — async LLM classifies surviving pairs (20x concurrent, batch=20)
+
+    Typical build times (30k-chunk corpus, 50k candidate pairs):
+      v1 (sync, no filter):                ~40 hours
+      v2 (--no-filter, async batch=20):    ~30 minutes
+      v2 (with stage-1 filter, default):   ~15-20 minutes
+
     Examples
     --------
     prism-build \\
         --lancedb-path  /path/to/lancedb \\
         --graph-path    /path/to/prism_graph.json.gz \\
-        --llm-api-key   sk-...
+        --llm-api-key   $DEEPSEEK_API_KEY
 
-    # Against the OpenClaw governance corpus:
+    # Skip stage-1 filter if Ollama is unavailable
     prism-build \\
-        --lancedb-path  /home/mando/.openclaw/knowledge/lancedb \\
-        --graph-path    /home/mando/.openclaw/knowledge/prism_graph.json.gz \\
+        --lancedb-path  /path/to/lancedb \\
+        --graph-path    /path/to/prism_graph.json.gz \\
         --llm-api-key   $DEEPSEEK_API_KEY \\
-        --max-pairs     50000
+        --no-filter
+
+    # Resume an interrupted build from checkpoint
+    prism-build \\
+        --lancedb-path  /path/to/lancedb \\
+        --graph-path    /path/to/prism_graph.json.gz \\
+        --llm-api-key   $DEEPSEEK_API_KEY \\
+        --resume
     """
     parser = argparse.ArgumentParser(
         prog="prism-build",
@@ -45,11 +62,21 @@ def main() -> None:
     parser.add_argument("--table-name",  default="knowledge",
                         help="LanceDB table name")
     parser.add_argument("--ollama-url",  default="http://localhost:11434",
-                        help="Ollama API base URL (used for embeddings)")
-    parser.add_argument("--embed-model", default="qwen3-embedding:4b",
+                        help="Ollama base URL (used for embeddings and stage-1 filter)")
+    parser.add_argument("--embed-model", default="nomic-embed-text",
                         help="Embedding model (must match the model used at ingest time)")
 
-    # ── LLM extraction ────────────────────────────────────────────────────────
+    # ── Stage 1: local filter ─────────────────────────────────────────────────
+    parser.add_argument("--filter-model", default="gemma4:latest",
+                        help="Ollama model for stage-1 binary pre-filter")
+    parser.add_argument("--filter-batch-size", type=int, default=10,
+                        help="Pairs per stage-1 Ollama call")
+    parser.add_argument("--filter-concurrency", type=int, default=5,
+                        help="Concurrent stage-1 Ollama requests")
+    parser.add_argument("--no-filter", action="store_true", default=False,
+                        help="Skip stage-1 filter (use if Ollama unavailable)")
+
+    # ── Stage 2: LLM extraction ───────────────────────────────────────────────
     parser.add_argument("--llm-base-url", default="https://api.deepseek.com",
                         help="OpenAI-compatible API base URL for epistemic extraction")
     parser.add_argument("--llm-model",    default="deepseek-chat",
@@ -58,8 +85,10 @@ def main() -> None:
                         help="API key (or set DEEPSEEK_API_KEY / OPENAI_API_KEY env var)")
     parser.add_argument("--min-confidence", type=float, default=0.65,
                         help="Minimum confidence score to keep an extracted edge")
-    parser.add_argument("--batch-size",   type=int, default=5,
-                        help="Chunk pairs per LLM extraction call")
+    parser.add_argument("--batch-size",   type=int, default=20,
+                        help="Pairs per LLM call — v2 default is 20 (was 5 in v1)")
+    parser.add_argument("--max-concurrent", type=int, default=20,
+                        help="Concurrent stage-2 LLM API requests")
 
     # ── Graph building ────────────────────────────────────────────────────────
     parser.add_argument("--k-neighbors",  type=int, default=8,
@@ -70,12 +99,17 @@ def main() -> None:
                         help="Include same-source pairs (default: cross-source only)")
     parser.add_argument("--force",        action="store_true", default=False,
                         help="Rebuild even if graph-path already exists")
+    parser.add_argument("--no-resume",    action="store_true", default=False,
+                        help="Ignore any existing checkpoint and start fresh")
 
     args = parser.parse_args()
 
     # ── Resolve API key from environment if not passed ────────────────────────
-    import os
-    api_key = args.llm_api_key or os.environ.get("DEEPSEEK_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    api_key = (
+        args.llm_api_key
+        or os.environ.get("DEEPSEEK_API_KEY", "")
+        or os.environ.get("OPENAI_API_KEY", "")
+    )
 
     # ── Auto-fix extension ────────────────────────────────────────────────────
     graph_path = Path(args.graph_path)
@@ -85,16 +119,20 @@ def main() -> None:
     from .prism import PRISM
 
     p = PRISM(
-        lancedb_path   = args.lancedb_path,
-        graph_path     = graph_path,
-        table_name     = args.table_name,
-        ollama_url     = args.ollama_url,
-        embed_model    = args.embed_model,
-        llm_base_url   = args.llm_base_url,
-        llm_model      = args.llm_model,
-        llm_api_key    = api_key,
-        min_confidence = args.min_confidence,
-        batch_size     = args.batch_size,
+        lancedb_path          = args.lancedb_path,
+        graph_path            = graph_path,
+        table_name            = args.table_name,
+        ollama_url            = args.ollama_url,
+        embed_model           = args.embed_model,
+        llm_base_url          = args.llm_base_url,
+        llm_model             = args.llm_model,
+        llm_api_key           = api_key,
+        min_confidence        = args.min_confidence,
+        batch_size            = args.batch_size,
+        max_concurrent        = args.max_concurrent,
+        filter_model          = args.filter_model,
+        filter_batch_size     = args.filter_batch_size,
+        filter_max_concurrent = args.filter_concurrency,
     )
 
     p.build(
@@ -102,6 +140,8 @@ def main() -> None:
         cross_source_only = not args.all_sources,
         max_pairs         = args.max_pairs,
         force             = args.force,
+        use_filter        = not args.no_filter,
+        resume            = not args.no_resume,
     )
 
     stats = p.stats()
