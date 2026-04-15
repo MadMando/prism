@@ -184,7 +184,7 @@ Surviving pairs are classified with full type + confidence using 20 concurrent A
 
 **Checkpoint / resume** — if interrupted, the build saves progress automatically and resumes from where it left off.
 
-**Choosing a Stage 1 filter model — use a model under ~5 GB.** Small, fast models (`llama3.1:8b`, `llama3.2:3b`, `gemma3:4b`) complete each binary call in under a second. Models above ~6 GB — especially over a network connection — can take 2–4 seconds per call and negate the benefit of filtering entirely. If no fast model is available, use `--no-filter` and rely on Stage 2 alone (~30 min).
+**Choosing a Stage 1 filter model — use a model under ~5 GB.** Small, fast models (`llama3.1:8b`, `llama3.2:3b`, `gemma3:4b`) complete each binary call in under a second. Models above ~6 GB — especially over a network connection — can take 2–4 seconds per call and negate the benefit of filtering entirely. If no fast model is available — or if your GPU doesn't have VRAM headroom for true parallel inference — use `--no-filter` and rely on Stage 2 alone (~30 min).
 
 If your Ollama instance is remote, pass its address via `ollama_url`:
 

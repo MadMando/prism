@@ -324,6 +324,8 @@ Stage 1 only pays off if the filter model is **fast**. The goal is a binary yes/
 
 **Avoid as filter models:** models above ~6 GB — at that size, per-call latency often exceeds the API savings, especially over a network connection. Cloud-streamed models (`*:cloud`, `*:1t`) are never suitable.
 
+**Stage 1 requires true parallel GPU inference.** `OLLAMA_NUM_PARALLEL` only helps if your GPU has enough VRAM to hold multiple simultaneous model instances. If the GPU is already near capacity running a single 8B model, Ollama will queue extra requests and concurrency has no effect. If Stage 1 isn't reducing your wall time, use `--no-filter` — Stage 2 alone typically finishes in ~30 minutes on a 50k-pair corpus.
+
 **If your Ollama server is remote** (not localhost), point `ollama_url` at it:
 
 ```python
