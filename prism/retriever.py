@@ -10,13 +10,17 @@ Falls back to pure vector search gracefully when no graph is loaded.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 from .activation import SpreadingActivation, classify_activation
-from .adapters.lancedb import LanceDBAdapter
+from .adapters.base import VectorAdapter
 from .edges import EdgeValence
 from .graph import EpistemicGraph
 from .result import EpistemicChunk, EpistemicResult
+
+# Reranker hook: receives (query, chunks) and returns reordered chunks.
+# Raise or return empty list to fall back to the original order.
+Reranker = Callable[[str, list[EpistemicChunk]], list[EpistemicChunk]]
 
 
 class PRISMRetriever:
@@ -24,28 +28,33 @@ class PRISMRetriever:
     The core retrieval engine.
 
     Args:
-        adapter:            LanceDBAdapter connected to the vector store
+        adapter:            VectorAdapter connected to the vector store
         graph:              EpistemicGraph (can be None for pure vector fallback)
         hops:               Spreading activation depth (default 3)
         decay:              Per-hop activation decay (default 0.7)
         min_activation:     Prune paths below this threshold (default 0.02)
         convergence_weight: Bonus weight for multi-path convergence (default 0.4)
         seed_top_k:         Number of vector-search seed nodes (default 20)
+        reranker:           Optional Reranker callable applied after epistemic
+                            bucketing. Receives all chunks and returns them
+                            reordered; final_score is updated to reflect rank.
     """
 
     def __init__(
         self,
-        adapter:            LanceDBAdapter,
+        adapter:            VectorAdapter,
         graph:              Optional[EpistemicGraph] = None,
         hops:               int   = 3,
         decay:              float = 0.7,
         min_activation:     float = 0.02,
         convergence_weight: float = 0.4,
         seed_top_k:         int   = 20,
+        reranker:           Optional[Reranker] = None,
     ):
         self.adapter            = adapter
         self.graph              = graph
         self.seed_top_k         = seed_top_k
+        self.reranker           = reranker
         self._activation_engine = SpreadingActivation(
             hops               = hops,
             decay              = decay,
@@ -151,6 +160,18 @@ class PRISMRetriever:
                     is_seed      = node_id in seed_scores,
                 )
             all_chunks.append(ec)
+
+        # ── Step 4.5: Optional reranker hook ─────────────────────────────────
+        if self.reranker is not None and all_chunks:
+            try:
+                reordered = list(self.reranker(query, all_chunks))
+            except Exception:
+                reordered = all_chunks  # fail safe — keep original order
+            if reordered:
+                all_chunks = reordered
+                n = len(all_chunks)
+                for rank, ec in enumerate(all_chunks):
+                    ec.final_score = (n - rank) / n
 
         # ── Step 5: Epistemic bucketing ───────────────────────────────────────
         # Seeds with no incoming epistemic edges → primary

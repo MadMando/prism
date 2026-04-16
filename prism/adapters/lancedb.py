@@ -278,6 +278,78 @@ class LanceDBAdapter:
         print(f"[prism] {len(candidates):,} candidate pairs generated")
         return candidates
 
+    def candidate_pairs_for(
+        self,
+        node_ids: list[str],
+        k_neighbors: int = 8,
+        cross_source_only: bool = False,
+    ) -> list[tuple[dict, dict]]:
+        """
+        Generate candidate pairs for a specific subset of nodes.
+        Used for incremental graph updates — only looks at newly-added chunks.
+
+        Returns deduplicated (chunk_a, chunk_b) pairs where at least one
+        member is in node_ids.
+        """
+        self._ensure_connected()
+        if not node_ids:
+            return []
+
+        id_set = set(node_ids)
+
+        # Fetch the rows for the target node_ids
+        id_list_sql = ", ".join(f"'{nid}'" for nid in list(id_set)[:500])
+        try:
+            target_rows = (
+                self._table.search()
+                .where(f"id IN ({id_list_sql})")
+                .limit(len(id_set) + 10)
+                .to_list()
+            )
+        except Exception:
+            return []
+
+        seen_pairs: set[frozenset] = set()
+        candidates: list[tuple[dict, dict]] = []
+
+        for row in target_rows:
+            vec = row.get("vector")
+            if vec is None:
+                continue
+            try:
+                neighbors = self._table.search(vec).limit(k_neighbors + 1).to_list()
+            except Exception:
+                continue
+
+            for nbr in neighbors:
+                if nbr["id"] == row["id"]:
+                    continue
+                if cross_source_only and nbr.get("source") == row.get("source"):
+                    continue
+
+                pair_key = frozenset([row["id"], nbr["id"]])
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+
+                chunk_a = {
+                    "id":      row["id"],
+                    "source":  row.get("source", ""),
+                    "page":    row.get("page", 0),
+                    "section": row.get("section", ""),
+                    "text":    row.get("text", ""),
+                }
+                chunk_b = {
+                    "id":      nbr["id"],
+                    "source":  nbr.get("source", ""),
+                    "page":    nbr.get("page", 0),
+                    "section": nbr.get("section", ""),
+                    "text":    nbr.get("text", ""),
+                }
+                candidates.append((chunk_a, chunk_b))
+
+        return candidates
+
     def populate_graph_nodes(self, graph) -> int:
         """
         Add all chunks in the LanceDB table as nodes in the epistemic graph.

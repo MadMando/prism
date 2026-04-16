@@ -47,7 +47,7 @@ class EpistemicFilter:
 
     Args:
         ollama_url:     Ollama base URL (default http://localhost:11434)
-        model:          Ollama model name (default gemma4:31b-cloud)
+        model:          Ollama model name (default llama3.1:8b)
         batch_size:     Pairs per Ollama call (default 10)
         max_concurrent: Concurrent Ollama requests (default 5)
         timeout:        Per-request timeout in seconds (default 120)
@@ -56,7 +56,7 @@ class EpistemicFilter:
     def __init__(
         self,
         ollama_url:     str = "http://localhost:11434",
-        model:          str = "gemma4:31b-cloud",
+        model:          str = "llama3.1:8b",
         batch_size:     int = 10,
         max_concurrent: int = 5,
         timeout:        int = 120,

@@ -161,15 +161,19 @@ Or via CLI:
 prism-build \
     --lancedb-path /path/to/lancedb \
     --graph-path   /path/to/prism_graph.json.gz \
-    --llm-api-key  $OPENAI_API_KEY \
-    --all-sources
+    --llm-api-key  $OPENAI_API_KEY
 ```
 
-> **`cross_source_only` vs `all-sources`**
+> **`cross_source_only` — default is `False` (include all sources)**
 >
-> The default (`cross_source_only=True` / no `--all-sources` flag) only extracts edges *between* different source documents. This sounds conservative but in practice leaves most intra-book relationships unextracted — a 5,000-chunk book like DMBOK has hundreds of internal `supports`/`derives_from`/`specializes` connections that the graph will never see.
+> PRISM defaults to extracting edges from *all* chunk pairs — same-source and cross-source alike. This produces richer graphs. On a 30k-chunk governance corpus:
 >
-> **Use `cross_source_only=False` (pass `--all-sources`)** for richer graphs. On a 30k-chunk corpus, this roughly doubles candidate pairs and produces 3–5× more edges, making the epistemic buckets (SUPPORTING, QUALIFYING, CONTRASTING) fire on far more queries.
+> | Setting | Edges | Avg deg | Connected chunks |
+> |---------|-------|---------|-----------------|
+> | `cross_source_only=True` | 3,571 | 0.23 | ~49% |
+> | `cross_source_only=False` (default) | 9,989 | 0.64 | ~82% |
+>
+> Pass `--cross-source-only` to restrict to inter-source pairs only. The old `--all-sources` flag is deprecated (it was the opt-in to current default behaviour).
 
 ### 2. Retrieve
 
@@ -371,9 +375,12 @@ This means PRISM is a safe drop-in replacement for any standard vector retriever
 ```python
 PRISM(
     # ── Storage ───────────────────────────────────────────────────
-    lancedb_path  = "/path/to/lancedb",
     graph_path    = "/path/to/prism_graph.json.gz",
-    table_name    = "knowledge",          # LanceDB table name
+    lancedb_path  = "/path/to/lancedb",   # OR use adapter= below
+    table_name    = "knowledge",           # LanceDB table name
+
+    # ── Custom adapter (alternative to lancedb_path) ─────────────
+    adapter       = None,                  # pass a VectorAdapter instance
 
     # ── Embedding: Ollama (default) ───────────────────────────────
     ollama_url    = "http://localhost:11434",
@@ -381,20 +388,29 @@ PRISM(
 
     # ── Embedding: API (set embed_api_key to activate) ────────────
     embed_api_url = "https://api.openai.com/v1/embeddings",
-    embed_api_key = None,                 # set to switch from Ollama
+    embed_api_key = None,                  # set to switch from Ollama
 
     # ── LLM for graph building ────────────────────────────────────
-    llm_base_url  = "https://api.openai.com",
-    llm_model     = "gpt-4o-mini",
-    llm_api_key   = "sk-...",
-    min_confidence = 0.65,               # edge confidence threshold
-    batch_size    = 5,                   # pairs per LLM call
+    llm_base_url      = "https://api.openai.com",
+    llm_model         = "gpt-4o-mini",
+    llm_api_key       = "sk-...",
+    min_confidence    = 0.65,             # edge confidence threshold
+    batch_size        = 20,              # pairs per LLM call (v2 default)
+    max_concurrent    = 20,             # concurrent LLM requests
+    max_retries       = 3,              # retries per failed batch (exp backoff)
+    failure_log_path  = None,           # path to write failed-batch JSON log
+
+    # ── Stage 1 filter ────────────────────────────────────────────
+    filter_model          = "llama3.1:8b",
+    filter_batch_size     = 10,
+    filter_max_concurrent = 5,
 
     # ── Retrieval tuning ──────────────────────────────────────────
     hops               = 3,             # spreading activation depth
     decay              = 0.7,           # per-hop decay factor
     seed_top_k         = 20,            # vector search seed count
     convergence_weight = 0.4,           # bonus weight for convergence
+    reranker           = None,          # optional Reranker callable
 )
 ```
 
@@ -405,17 +421,20 @@ PRISM(
 ```
 prism/
 ├── prism/
-│   ├── __init__.py         public API
-│   ├── prism.py            PRISM — main entry point
+│   ├── __init__.py         public API (PRISM, VectorAdapter, Reranker, ...)
+│   ├── prism.py            PRISM — main entry point + add_documents()
 │   ├── edges.py            epistemic edge taxonomy + propagation weights
 │   ├── graph.py            EpistemicGraph (networkx MultiDiGraph + JSON serialisation)
-│   ├── extractor.py        LLM-based triple extraction (batch mode)
+│   ├── extractor.py        LLM-based triple extraction (async, retries, failure log)
+│   ├── filter.py           Stage 1 Ollama pre-filter
 │   ├── activation.py       SpreadingActivation engine + convergence scoring
-│   ├── retriever.py        PRISMRetriever — the 5-step pipeline
+│   ├── retriever.py        PRISMRetriever — 5-step pipeline + reranker hook
 │   ├── result.py           EpistemicResult + EpistemicChunk dataclasses
 │   ├── cli.py              prism-build CLI
+│   ├── inspect_cli.py      prism-stats + prism-inspect diagnostic CLIs
 │   └── adapters/
-│       └── lancedb.py      LanceDB adapter (Ollama + API embedding)
+│       ├── base.py         VectorAdapter Protocol (@runtime_checkable)
+│       └── lancedb.py      LanceDB adapter (Ollama + API embedding, candidate_pairs_for)
 ├── scripts/
 │   └── build_graph.py      standalone build script
 ├── examples/
@@ -423,6 +442,119 @@ prism/
 ├── docs/
 │   └── architecture.svg
 └── pyproject.toml
+```
+
+---
+
+## Incremental Updates
+
+After your graph is built, add new documents without a full rebuild:
+
+```python
+# 1. Ingest new docs into your vector store first (LanceDB, etc.)
+# 2. Collect the new chunk IDs
+new_ids = ["chunk_abc", "chunk_def", "chunk_ghi"]
+
+# 3. Update the graph — finds neighbours of new chunks, runs pipeline, saves
+p.load_graph()
+n_new_edges = p.add_documents(new_ids)
+print(f"Added {n_new_edges} new edges")
+```
+
+`add_documents()` runs the same two-stage pipeline but only over candidate pairs involving the new chunks. The existing graph is updated in-place and re-saved.
+
+---
+
+## Custom Vector Stores
+
+PRISM ships a `VectorAdapter` Protocol. Implement it to connect PRISM to any vector store — Qdrant, Weaviate, Chroma, pgvector, or a fully custom store:
+
+```python
+from prism import PRISM, VectorAdapter
+
+class MyQdrantAdapter:
+    def seed_scores(self, query, top_k=20, source_filter=None) -> dict[str, float]:
+        # embed query, search Qdrant, return {id: score}
+        ...
+    def get_chunks(self, node_ids) -> dict[str, dict]:
+        # fetch chunk dicts for given IDs
+        ...
+    def connect(self) -> None: ...
+    def populate_graph_nodes(self, graph) -> int: ...
+    def candidate_pairs(self, k_neighbors=8, cross_source_only=False, max_pairs=None): ...
+    def candidate_pairs_for(self, node_ids, k_neighbors=8, cross_source_only=False): ...
+    def stats(self) -> dict: ...
+
+# Protocol is @runtime_checkable
+assert isinstance(MyQdrantAdapter(), VectorAdapter)
+
+p = PRISM(
+    graph_path = "/path/to/prism_graph.json.gz",
+    adapter    = MyQdrantAdapter(),
+    ...
+)
+```
+
+---
+
+## Reranker Hook
+
+Plug in any reranker (cross-encoder, LLM-based, Cohere Rerank, etc.) to post-process retrieval results:
+
+```python
+from prism import PRISM, Reranker, EpistemicChunk
+
+def my_reranker(query: str, chunks: list[EpistemicChunk]) -> list[EpistemicChunk]:
+    # Call your reranker API, return chunks in new order
+    scores = cohere_client.rerank(query=query, documents=[c.text for c in chunks])
+    return [chunks[r.index] for r in scores.results]
+
+p = PRISM(
+    lancedb_path = "/path/to/lancedb",
+    graph_path   = "/path/to/prism_graph.json.gz",
+    reranker     = my_reranker,
+    ...
+)
+
+result = p.retrieve("your question")
+# Chunks in result.primary are in reranker order, with final_score updated to reflect rank
+```
+
+The reranker runs after epistemic bucketing as a final pass over all retrieved chunks. If the reranker raises an exception, PRISM falls back to the original spreading-activation order.
+
+---
+
+## Diagnostic CLIs
+
+Two diagnostic commands are included after `pip install prism-rag`:
+
+```bash
+# Graph and store statistics
+prism-stats /path/to/prism_graph.json.gz
+prism-stats /path/to/prism_graph.json.gz --lancedb-path /path/to/lancedb  # include store stats
+prism-stats /path/to/prism_graph.json.gz --json  # machine-readable output
+
+# Inspect a specific node — its edges, neighbours, rationales
+prism-inspect /path/to/prism_graph.json.gz --node chunk_abc123
+prism-inspect /path/to/prism_graph.json.gz --node chunk_abc123 --json
+```
+
+Example `prism-stats` output:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PRISM Graph Statistics
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  File     : prism_graph.json.gz
+  Nodes    : 15,426
+  Edges    : 9,989
+  Avg deg  : 0.64 edges/node
+
+  Edge type distribution:
+    exemplifies          4,183  41.9%  ████████████
+    supports             2,710  27.1%  ████████
+    specializes          1,289  12.9%  ████
+    ...
 ```
 
 ---
@@ -450,7 +582,7 @@ In a real-world test on a 30k-chunk governance corpus (DMBOK + 2 governance book
 **Recommendation: use `cross_source_only=False` for most corpora.** Only use `True` if your sources are genuinely independent and you specifically want to suppress intra-document structure.
 
 **Build is slow and LLM-dependent.**
-The one-time graph build requires thousands of LLM API calls and takes hours for large corpora. There is currently no incremental update — adding new documents requires a rebuild (or manual edge addition).
+The one-time graph build requires thousands of LLM API calls and takes hours for large corpora. Incremental updates via `add_documents()` are supported for adding new chunks without a full rebuild.
 
 **No evaluation benchmark yet.**
 We do not currently publish retrieval quality metrics comparing PRISM against standard RAG on standardised QA datasets. The `benchmarks/` directory contains a structural demonstration only.
@@ -462,10 +594,14 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 - [x] Async LLM extraction (parallel API calls → 80× faster build)
 - [x] Two-stage pipeline: local pre-filter + async classification
 - [x] Checkpoint / resume for interrupted builds
-- [ ] Incremental graph updates (add new docs without full rebuild)
+- [x] Incremental graph updates via `add_documents()`
+- [x] Pluggable `VectorAdapter` Protocol for custom vector stores
+- [x] Reranker hook for cross-encoder / LLM-based reranking
+- [x] `prism-stats` and `prism-inspect` diagnostic CLIs
 - [ ] Additional vector store adapters (Chroma, Qdrant, Weaviate, pgvector)
 - [ ] Graph visualisation (`prism-viz` CLI — exports to Gephi / D3)
 - [ ] Export to Neo4j / NetworkX formats
+- [ ] Retrieval quality benchmarks on standard QA datasets
 
 ---
 

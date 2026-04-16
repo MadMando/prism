@@ -95,12 +95,17 @@ def main() -> None:
                         help="Semantic neighbours per chunk for candidate pairs")
     parser.add_argument("--max-pairs",    type=int, default=None,
                         help="Cap total candidate pairs (no limit by default)")
+    parser.add_argument("--cross-source-only", action="store_true", default=False,
+                        help="Only extract inter-source pairs (skips same-source pairs; "
+                             "reduces edges by ~50%% but misses within-source relationships)")
     parser.add_argument("--all-sources",  action="store_true", default=False,
-                        help="Include same-source pairs (default: cross-source only)")
+                        help=argparse.SUPPRESS)  # deprecated — was the old default-off flag
     parser.add_argument("--force",        action="store_true", default=False,
                         help="Rebuild even if graph-path already exists")
     parser.add_argument("--no-resume",    action="store_true", default=False,
                         help="Ignore any existing checkpoint and start fresh")
+    parser.add_argument("--failure-log",  default=None,
+                        help="Path to write a JSON log of failed extraction batches")
 
     args = parser.parse_args()
 
@@ -118,6 +123,19 @@ def main() -> None:
 
     from .prism import PRISM
 
+    # --all-sources is deprecated; warn and treat as "not --cross-source-only"
+    if args.all_sources:
+        import warnings
+        warnings.warn(
+            "--all-sources is deprecated and will be removed in a future release. "
+            "The default is now to include all sources. "
+            "Use --cross-source-only to restrict to inter-source pairs.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+
+    cross_source_only = args.cross_source_only  # default False = include all sources
+
     p = PRISM(
         lancedb_path          = args.lancedb_path,
         graph_path            = graph_path,
@@ -133,11 +151,12 @@ def main() -> None:
         filter_model          = args.filter_model,
         filter_batch_size     = args.filter_batch_size,
         filter_max_concurrent = args.filter_concurrency,
+        failure_log_path      = args.failure_log,
     )
 
     p.build(
         k_neighbors       = args.k_neighbors,
-        cross_source_only = not args.all_sources,
+        cross_source_only = cross_source_only,
         max_pairs         = args.max_pairs,
         force             = args.force,
         use_filter        = not args.no_filter,

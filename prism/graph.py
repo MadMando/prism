@@ -149,12 +149,10 @@ class EpistemicGraph:
         self, source_id: str, target_id: str
     ) -> list[tuple[EpistemicEdgeType, float]]:
         """Return all edge types (and weights) between two nodes."""
-        result = []
+        result: list[tuple[EpistemicEdgeType, float]] = []
         if not (self._g.has_node(source_id) and self._g.has_node(target_id)):
             return result
-        for _, _, data in self._g.out_edges(source_id, data=True):
-            pass  # need to iterate per target
-        for key, data in self._g.get_edge_data(source_id, target_id, default={}).items():
+        for _, data in self._g.get_edge_data(source_id, target_id, default={}).items():
             try:
                 result.append((EpistemicEdgeType(data["type"]), data.get("weight", 0.5)))
             except (ValueError, KeyError):
