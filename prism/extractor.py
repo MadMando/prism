@@ -146,6 +146,9 @@ class EpistemicExtractor:
         max_concurrent:   int   = 20,
         timeout:          int   = 90,
         checkpoint_every: int   = 100,
+        max_retries:      int   = 3,
+        retry_base_delay: float = 1.0,
+        failure_log_path: Optional[str] = None,
         # legacy compat — ignored in v2 (async replaces delay)
         delay_s:          float = 0.0,
     ):
@@ -157,6 +160,10 @@ class EpistemicExtractor:
         self.max_concurrent   = max_concurrent
         self.timeout          = timeout
         self.checkpoint_every = checkpoint_every
+        self.max_retries      = max_retries
+        self.retry_base_delay = retry_base_delay
+        self.failure_log_path = Path(failure_log_path) if failure_log_path else None
+        self._failures: list[dict] = []
 
     # ── Single-pair parsing (used by tests and single-pair fallback) ─────────
 
@@ -220,8 +227,6 @@ class EpistemicExtractor:
         sem:    asyncio.Semaphore,
         batch:  list[tuple[dict, dict]],
     ) -> list[Optional[ExtractionResult]]:
-        results: list[Optional[ExtractionResult]] = [None] * len(batch)
-
         parts = []
         for i, (a, b) in enumerate(batch):
             parts.append(
@@ -238,14 +243,22 @@ class EpistemicExtractor:
             {"role": "user",   "content": prompt},
         ]
 
-        try:
-            raw = await self._call_llm(client, sem, messages)
-            results = self._parse_batch(raw, batch)
-        except Exception:
-            # Batch failed entirely — return all None (silent skip)
-            pass
+        last_error: Optional[str] = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                raw = await self._call_llm(client, sem, messages)
+                return self._parse_batch(raw, batch)
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                if attempt < self.max_retries:
+                    await asyncio.sleep(self.retry_base_delay * (2 ** attempt))
 
-        return results
+        # All retries exhausted — log and return empty
+        self._failures.append({
+            "pair_ids": [[a["id"], b["id"]] for a, b in batch],
+            "error": last_error or "unknown",
+        })
+        return [None] * len(batch)
 
     # ── Parsing ───────────────────────────────────────────────────────────────
 
@@ -395,4 +408,15 @@ class EpistemicExtractor:
             Number of edges added to the graph.
         """
         cp = Path(checkpoint_path) if checkpoint_path else None
-        return asyncio.run(self._run(candidate_pairs, graph, cp, show_progress))
+        n_added = asyncio.run(self._run(candidate_pairs, graph, cp, show_progress))
+
+        if self._failures:
+            n_failed = sum(len(f["pair_ids"]) for f in self._failures)
+            print(f"[prism] WARNING: {n_failed:,} pairs failed after {self.max_retries} retries")
+            if self.failure_log_path:
+                self.failure_log_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.failure_log_path, "w", encoding="utf-8") as fh:
+                    json.dump(self._failures, fh, indent=2)
+                print(f"[prism]   failures logged → {self.failure_log_path}")
+
+        return n_added

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prism-rag"
-version = "0.2.1"
+version = "0.2.2"
 description = "Epistemic Graph RAG with Spreading Activation — retrieval that understands how knowledge relates, not just what it says"
 readme = "README_PYPI.md"
 requires-python = ">=3.11"
@@ -52,7 +52,9 @@ Repository = "https://github.com/MadMando/prism"
 Issues     = "https://github.com/MadMando/prism/issues"
 
 [project.scripts]
-prism-build = "prism.cli:main"
+prism-build   = "prism.cli:main"
+prism-stats   = "prism.inspect_cli:stats_main"
+prism-inspect = "prism.inspect_cli:inspect_main"
 
 [tool.setuptools.packages.find]
 where   = ["."]

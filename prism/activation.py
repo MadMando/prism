@@ -116,6 +116,11 @@ class SpreadingActivation:
             ))
             state[node_id] = na
 
+        def _source_match(nid: str) -> bool:
+            if not source_filter:
+                return True
+            return source_filter.lower() in _node_source(graph, nid).lower()
+
         # Propagate hop by hop
         current_frontier: dict[str, float] = dict(seed_scores)
 
@@ -131,11 +136,11 @@ class SpreadingActivation:
 
                 # Forward edges
                 for nbr, edge_type, weight, rationale in graph.neighbors(node_id):
+                    if not _source_match(nbr):
+                        continue
                     propagated = frontier_activation * weight * hop_decay
                     if propagated < self.min_activation:
                         continue
-                    if source_filter and _node_source(graph, nbr) != source_filter:
-                        pass  # source filter does not block — it's optional hint
                     self._accumulate(state, next_frontier, nbr, node_id, edge_type,
                                      propagated, step, seed_origins)
 

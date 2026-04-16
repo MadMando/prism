@@ -14,12 +14,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from .adapters.base import VectorAdapter
 from .adapters.lancedb import LanceDBAdapter
 from .extractor import EpistemicExtractor
 from .filter import EpistemicFilter
 from .graph import EpistemicGraph
-from .result import EpistemicResult
-from .retriever import PRISMRetriever
+from .result import EpistemicChunk, EpistemicResult
+from .retriever import PRISMRetriever, Reranker
 
 
 class PRISM:
@@ -49,9 +50,11 @@ class PRISM:
 
     def __init__(
         self,
-        lancedb_path:   str | Path,
         graph_path:     str | Path,
+        lancedb_path:   Optional[str | Path] = None,
         table_name:     str = "knowledge",
+        # ── Custom adapter (alternative to lancedb_path) ──────────────
+        adapter:        Optional[VectorAdapter] = None,
         # ── Embedding: Option A — Ollama (default) ────────────────────
         ollama_url:     str = "http://localhost:11434",
         embed_model:    str = "nomic-embed-text",
@@ -67,6 +70,8 @@ class PRISM:
         min_confidence: float = 0.65,
         batch_size:     int   = 20,        # v2 default: 20 (was 5)
         max_concurrent: int   = 20,        # v2: async concurrent requests
+        max_retries:    int   = 3,
+        failure_log_path: Optional[str] = None,
         # ── Stage 1 filter settings ───────────────────────────────────
         filter_model:         str = "llama3.1:8b",  # fast Ollama model for Stage 1 pre-filter
         filter_batch_size:    int = 10,
@@ -76,26 +81,37 @@ class PRISM:
         decay:              float = 0.7,
         seed_top_k:         int   = 20,
         convergence_weight: float = 0.4,
+        reranker:           Optional[Reranker] = None,
     ):
         self.graph_path = Path(graph_path)
         self.ollama_url = ollama_url
+        self._reranker  = reranker
 
-        self.adapter = LanceDBAdapter(
-            db_path       = lancedb_path,
-            table_name    = table_name,
-            ollama_url    = ollama_url,
-            embed_model   = embed_model,
-            embed_api_url = embed_api_url,
-            embed_api_key = embed_api_key,
-        )
+        if adapter is not None:
+            self.adapter = adapter
+        elif lancedb_path is not None:
+            self.adapter = LanceDBAdapter(
+                db_path       = lancedb_path,
+                table_name    = table_name,
+                ollama_url    = ollama_url,
+                embed_model   = embed_model,
+                embed_api_url = embed_api_url,
+                embed_api_key = embed_api_key,
+            )
+        else:
+            raise ValueError(
+                "Provide either lancedb_path= or adapter= — both are None."
+            )
 
         self._extractor_kwargs = dict(
-            base_url         = llm_base_url,
-            model            = llm_model,
-            api_key          = llm_api_key,
-            min_confidence   = min_confidence,
-            batch_size       = batch_size,
-            max_concurrent   = max_concurrent,
+            base_url          = llm_base_url,
+            model             = llm_model,
+            api_key           = llm_api_key,
+            min_confidence    = min_confidence,
+            batch_size        = batch_size,
+            max_concurrent    = max_concurrent,
+            max_retries       = max_retries,
+            failure_log_path  = failure_log_path,
         )
 
         self._filter_kwargs = dict(
@@ -123,6 +139,7 @@ class PRISM:
         self._retriever = PRISMRetriever(
             adapter=self.adapter,
             graph=self.graph,
+            reranker=self._reranker,
             **self._retriever_kwargs,
         )
         return self
@@ -130,7 +147,7 @@ class PRISM:
     def build(
         self,
         k_neighbors:       int  = 8,
-        cross_source_only: bool = True,
+        cross_source_only: bool = False,
         max_pairs:         Optional[int] = None,
         force:             bool = False,
         use_filter:        bool = True,
@@ -204,8 +221,8 @@ class PRISM:
         # Step 5: Finalise + save
         graph.meta = {
             "built_at":          datetime.now(timezone.utc).isoformat(),
-            "lancedb_path":      str(self.adapter.db_path),
-            "embed_model":       self.adapter.embed_model,
+            "adapter":           self.adapter.__class__.__name__,
+            "embed_model":       getattr(self.adapter, "embed_model", "unknown"),
             "extraction_model":  self._extractor_kwargs["model"],
             "filter_model":      self._filter_kwargs["model"] if use_filter else None,
             "k_neighbors":       k_neighbors,
@@ -256,6 +273,7 @@ class PRISM:
             self._retriever = PRISMRetriever(
                 adapter=self.adapter,
                 graph=None,
+                reranker=self._reranker,
                 **self._retriever_kwargs,
             )
         return self._retriever.retrieve(
@@ -264,6 +282,77 @@ class PRISM:
             source_filter = source_filter,
             persona       = persona,
         )
+
+    # ── Incremental updates ───────────────────────────────────────────────────
+
+    def add_documents(
+        self,
+        node_ids:          list[str],
+        k_neighbors:       int  = 8,
+        cross_source_only: bool = False,
+        use_filter:        bool = True,
+    ) -> int:
+        """
+        Incrementally update the graph with newly-added chunks.
+
+        After adding new documents to the vector store, call this to extract
+        epistemic relationships involving the new chunks and update the graph.
+        The existing graph is updated in-place and re-saved to disk.
+
+        Args:
+            node_ids:          IDs of the newly-added chunks (must already be
+                               in the vector store)
+            k_neighbors:       k-NN neighbours to consider for each new chunk
+            cross_source_only: Only extract inter-source pairs
+            use_filter:        Run Stage 1 local pre-filter
+
+        Returns:
+            Number of new edges added
+        """
+        if self.graph is None:
+            if self.graph_path.exists():
+                self.load_graph()
+            else:
+                raise RuntimeError(
+                    "No graph loaded and no graph file found. Run build() first."
+                )
+
+        self.adapter.connect()
+
+        # Add new nodes to the graph
+        chunks = self.adapter.get_chunks(node_ids)
+        for nid, data in chunks.items():
+            self.graph.add_node(
+                nid,
+                source       = data.get("source", ""),
+                page         = data.get("page", 0),
+                section      = data.get("section", ""),
+                text_preview = data.get("text", "")[:200],
+            )
+
+        # Find candidate pairs for the new nodes
+        candidates = self.adapter.candidate_pairs_for(
+            node_ids          = node_ids,
+            k_neighbors       = k_neighbors,
+            cross_source_only = cross_source_only,
+        )
+        if not candidates:
+            print("[prism] add_documents: no candidate pairs found for new chunks")
+            return 0
+
+        print(f"[prism] add_documents: {len(candidates):,} candidate pairs for {len(node_ids)} new chunks")
+
+        if use_filter:
+            f = EpistemicFilter(**self._filter_kwargs)
+            candidates = f.filter(candidates)
+
+        extractor = EpistemicExtractor(**self._extractor_kwargs)
+        n_added = extractor.extract_from_candidates(candidates, self.graph)
+
+        # Save updated graph
+        self.graph.save(self.graph_path)
+        print(f"[prism] add_documents: {n_added} new edges added, graph updated")
+        return n_added
 
     # ── Stats ─────────────────────────────────────────────────────────────────
 

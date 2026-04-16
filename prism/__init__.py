@@ -32,13 +32,14 @@ from .prism import PRISM
 from .result import EpistemicResult, EpistemicChunk, ActivationPath
 from .edges import EpistemicEdgeType, EdgeValence, PROPAGATION_WEIGHTS
 from .graph import EpistemicGraph
-from .retriever import PRISMRetriever
+from .retriever import PRISMRetriever, Reranker
 from .extractor import EpistemicExtractor
 from .filter import EpistemicFilter
 from .activation import SpreadingActivation, NodeActivation
+from .adapters.base import VectorAdapter
 from .adapters.lancedb import LanceDBAdapter
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __author__  = "PRISM Contributors"
 
 __all__ = [
@@ -55,9 +56,11 @@ __all__ = [
     "PROPAGATION_WEIGHTS",
     # Internals (for advanced use)
     "PRISMRetriever",
+    "Reranker",
     "EpistemicExtractor",
     "EpistemicFilter",
     "SpreadingActivation",
     "NodeActivation",
+    "VectorAdapter",
     "LanceDBAdapter",
 ]
