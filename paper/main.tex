@@ -46,11 +46,12 @@
 }
 
 \author{
-  \textbf{PRISM Contributors} \\
+  \textbf{MadMando}\thanks{\href{https://github.com/MadMando}{github.com/MadMando}} \\
+  \textbf{Claude (Anthropic)}\thanks{Claude Sonnet 4.6 / Opus 4.7, contributed to the adapter architecture, the multi-backend refactor, and this manuscript.} \\[0.5em]
   \href{https://github.com/MadMando/prism}{https://github.com/MadMando/prism}
 }
 
-\date{April 2026}
+\date{April 2026 — revised for v0.2.5}
 
 \begin{document}
 
@@ -139,9 +140,11 @@ this position through three components:
 \end{enumerate}
 
 PRISM makes no assumptions about the internal structure of the underlying
-vector store — it works on top of any existing LanceDB corpus without
-re-embedding or re-indexing. When no graph is available, it degrades
-gracefully to standard vector retrieval.
+vector store. Built-in adapters ship for LanceDB, ChromaDB, Qdrant,
+Weaviate, and pgvector; a documented \texttt{VectorAdapter} protocol
+lets users plug in any other backend without re-embedding or re-indexing
+their corpus. When no graph is available, PRISM degrades gracefully to
+standard vector retrieval.
 
 \paragraph{Contributions.}
 \begin{itemize}[leftmargin=*]
@@ -152,8 +155,11 @@ gracefully to standard vector retrieval.
         (\S\ref{sec:activation}).
   \item An \emph{epistemic bucketing} output schema that structures
         retrieval results for downstream LLM consumption (\S\ref{sec:bucketing}).
-  \item An open-source Python library with a LanceDB adapter, CLI, and a
-        self-contained synthetic benchmark.
+  \item An open-source Python library (\texttt{prism-rag} on PyPI, v0.2.5)
+        with a pluggable \texttt{VectorAdapter} protocol, built-in adapters
+        for LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector, diagnostic
+        CLIs (\texttt{prism-build}, \texttt{prism-stats}, \texttt{prism-inspect},
+        \texttt{prism-viz}), and a self-contained synthetic benchmark.
 \end{itemize}
 
 % ── 2. Background ─────────────────────────────────────────────────────────────
