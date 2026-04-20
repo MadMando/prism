@@ -301,10 +301,11 @@ class PgvectorAdapter:
         seen_pairs: set[frozenset] = set()
         candidates: list[tuple[dict, dict]] = []
 
-        with self._conn.cursor() as cur:
-            cur.execute(fetch_sql, (list(node_ids),))
-            target_rows = cur.fetchall()
+        with self._conn.cursor() as fetch_cur:
+            fetch_cur.execute(fetch_sql, (list(node_ids),))
+            target_rows = fetch_cur.fetchall()
 
+        with self._conn.cursor() as nbr_cur:
             for row in target_rows:
                 row_id    = str(row[0])
                 row_chunk = self._row_to_chunk(row)
@@ -312,8 +313,8 @@ class PgvectorAdapter:
                 if not vec_text:
                     continue
 
-                cur.execute(nbr_sql, (vec_text, k_neighbors + 1))
-                neighbors = cur.fetchall()
+                nbr_cur.execute(nbr_sql, (vec_text, k_neighbors + 1))
+                neighbors = nbr_cur.fetchall()
 
                 for nbr_row in neighbors:
                     nbr_id    = str(nbr_row[0])

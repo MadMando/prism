@@ -167,11 +167,13 @@ class WeaviateAdapter:
                     filters = wvc.query.Filter.by_property(self.id_property).equal(chunk_id),
                     limit   = 1,
                 )
-                if response.objects:
-                    chunk = self._obj_to_chunk(response.objects[0])
-                    results[chunk["id"]] = chunk
-            except Exception:
+            except Exception as e:
+                import sys
+                print(f"[prism] WARNING: fetch failed for {chunk_id}: {e}", file=sys.stderr)
                 continue
+            if response.objects:
+                chunk = self._obj_to_chunk(response.objects[0])
+                results[chunk["id"]] = chunk
 
         return results
 
@@ -285,47 +287,41 @@ class WeaviateAdapter:
         if not node_ids:
             return []
 
-        # Build full ID→chunk map first
-        all_chunks: dict[str, dict] = {}
+        # One scan of the collection — grab chunks AND vectors in the same
+        # pass so the per-ID loop below can avoid an N+1 round-trip per chunk.
+        id_set = set(node_ids)
+        all_chunks: dict[str, dict]        = {}
+        id_to_vector: dict[str, list[float]] = {}
         cursor = None
         while True:
-            response = self._collection.query.fetch_objects(limit=500, after=cursor)
+            response = self._collection.query.fetch_objects(
+                limit          = 500,
+                after          = cursor,
+                include_vector = True,
+            )
             if not response.objects:
                 break
             for obj in response.objects:
                 chunk = self._obj_to_chunk(obj)
                 all_chunks[chunk["id"]] = chunk
+                vec = obj.vector
+                if isinstance(vec, dict):
+                    vec = vec.get("default") or next(iter(vec.values()), None)
+                if vec is not None:
+                    id_to_vector[chunk["id"]] = list(vec)
             cursor = response.objects[-1].uuid
 
-        id_set = set(node_ids)
         seen_pairs: set[frozenset] = set()
         candidates: list[tuple[dict, dict]] = []
 
         for chunk_id in id_set:
-            try:
-                response = self._collection.query.fetch_objects(
-                    filters        = wvc.query.Filter.by_property(self.id_property).equal(chunk_id),
-                    limit          = 1,
-                    include_vector = True,
-                )
-                if not response.objects:
-                    continue
-                obj = response.objects[0]
-            except Exception:
+            row_chunk = all_chunks.get(chunk_id)
+            vec       = id_to_vector.get(chunk_id)
+            if row_chunk is None or vec is None:
                 continue
-
-            vec = obj.vector
-            if vec is None:
-                continue
-            if isinstance(vec, dict):
-                vec = vec.get("default") or next(iter(vec.values()), None)
-            if vec is None:
-                continue
-
-            row_chunk = self._obj_to_chunk(obj)
 
             nbr_response = self._collection.query.near_vector(
-                near_vector = list(vec),
+                near_vector = vec,
                 limit       = k_neighbors + 1,
             )
             for nbr_obj in nbr_response.objects:
@@ -348,7 +344,6 @@ class WeaviateAdapter:
     def stats(self) -> dict:
         self._ensure_connected()
         from collections import Counter
-        info = self._client.collections.get(self.collection_name)
         sources: Counter = Counter()
         cursor = None
         total  = 0

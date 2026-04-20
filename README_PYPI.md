@@ -279,6 +279,16 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 
 ---
 
+## What's new in 0.2.5
+
+Bug-fix and test-coverage release for the adapters shipped in 0.2.4:
+
+- **LanceDB:** `get_chunks` no longer silently drops node IDs past the first 100 — queries are batched instead.
+- **ChromaDB:** dropped the invalid `$contains` `where` filter; `source_filter` now applies client-side without triggering a fallback.
+- **Weaviate:** `candidate_pairs_for` no longer issues one round-trip per chunk ID — vectors are cached in the initial scan.
+- **pgvector:** `candidate_pairs_for` uses separate cursors for the fetch and neighbour queries (avoids psycopg2 buffer-invalidation).
+- **Tests:** new unit suites for Chroma, Qdrant, Weaviate, pgvector, and `prism-viz`. CI now runs a matrix across all five adapter extras plus a coverage job (`pytest-cov`, 50 % floor).
+
 ## License
 
 MIT

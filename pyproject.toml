@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prism-rag"
-version = "0.2.4"
+version = "0.2.5"
 description = "Epistemic Graph RAG with Spreading Activation — retrieval that understands how knowledge relates, not just what it says"
 readme = "README_PYPI.md"
 requires-python = ">=3.11"
@@ -55,6 +55,7 @@ pgvector = [
 dev = [
     "pytest>=7.0",
     "pytest-asyncio",
+    "pytest-cov>=4.0",
     "black",
     "ruff",
     "mypy",

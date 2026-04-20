@@ -706,8 +706,23 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 - [x] `prism-stats` and `prism-inspect` diagnostic CLIs
 - [x] Additional vector store adapters (Chroma, Qdrant, Weaviate, pgvector)
 - [x] Graph visualisation (`prism-viz` CLI — exports to Gephi GEXF / D3 JSON)
+- [x] Adapter bug fixes + unit test coverage + CI matrix across all extras (0.2.5)
 - [ ] Export to Neo4j / NetworkX formats
 - [ ] Retrieval quality benchmarks on standard QA datasets
+
+---
+
+## Changelog
+
+### 0.2.5 — Adapter bug fixes, tests, CI matrix
+
+- **LanceDB:** `get_chunks` no longer silently drops node IDs past the first 100 — queries are batched.
+- **ChromaDB:** removed the invalid `{"source": {"$contains": ...}}` `where` filter; source filtering now applies client-side with no silent fallback.
+- **Weaviate:** `candidate_pairs_for` now reuses vectors from the initial scan instead of one `fetch_objects` call per chunk ID (avoids N+1). Also drops a dead `info` variable in `stats()`.
+- **pgvector:** `candidate_pairs_for` uses one cursor for the target-row fetch and a second cursor for neighbour queries — avoids psycopg2 buffer invalidation.
+- Silent `except Exception: pass` blocks in adapter code now emit stderr warnings.
+- **Tests:** new unit suites for Chroma, Qdrant, Weaviate, pgvector, and `prism-viz`. 158 tests total.
+- **CI:** matrix job per adapter extra (`lancedb`, `chroma`, `qdrant`, `weaviate`, `pgvector`) so missing optional deps are caught at PR time. New coverage job (`pytest-cov`) with a 50 % floor.
 
 ---
 

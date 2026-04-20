@@ -117,44 +117,34 @@ class ChromaAdapter:
         self._ensure_connected()
         vec = self._embedder.embed(query)
 
-        where = None
-        if source_filter:
-            where = {"source": {"$contains": source_filter}}
-
+        # Chroma's `where` operators are scalar equality only (no $contains on
+        # strings), so substring matching has to happen client-side.
         fetch = top_k * 4 if source_filter else top_k * 2
-        try:
-            results = self._collection.query(
-                query_embeddings=[vec],
-                n_results=fetch,
-                where=where,
-                include=["distances", "metadatas"],
-            )
-        except Exception:
-            # Retry without where filter if it fails (e.g. no metadatas)
-            results = self._collection.query(
-                query_embeddings=[vec],
-                n_results=fetch,
-                include=["distances", "metadatas"],
-            )
-            if source_filter:
-                # Manual filter
-                ids       = results["ids"][0]
-                distances = results["distances"][0]
-                metas     = results["metadatas"][0]
-                filtered = [
-                    (i, d, m) for i, d, m in zip(ids, distances, metas)
-                    if source_filter.lower() in m.get("source", "").lower()
-                ]
-                ids       = [x[0] for x in filtered]
-                distances = [x[1] for x in filtered]
-                results   = {"ids": [ids], "distances": [distances]}
+        results = self._collection.query(
+            query_embeddings=[vec],
+            n_results=fetch,
+            include=["distances", "metadatas"],
+        )
 
-        chunk_ids = results["ids"][0][:top_k]
-        distances = results["distances"][0][:top_k]
+        ids       = results["ids"][0]
+        distances = results["distances"][0]
+        metas     = results.get("metadatas", [[]])[0] or [{}] * len(ids)
+
+        if source_filter:
+            needle   = source_filter.lower()
+            filtered = [
+                (i, d) for i, d, m in zip(ids, distances, metas)
+                if needle in (m or {}).get("source", "").lower()
+            ]
+            ids       = [x[0] for x in filtered]
+            distances = [x[1] for x in filtered]
+
+        ids       = ids[:top_k]
+        distances = distances[:top_k]
 
         return {
             cid: self._distance_to_score(dist)
-            for cid, dist in zip(chunk_ids, distances)
+            for cid, dist in zip(ids, distances)
         }
 
     # ── Chunk hydration ───────────────────────────────────────────────────────

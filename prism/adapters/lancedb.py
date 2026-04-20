@@ -148,23 +148,30 @@ class LanceDBAdapter:
             return {}
 
         id_set = set(node_ids)
-        results = {}
+        results: dict[str, dict] = {}
 
-        try:
-            safe_ids  = [nid.replace("'", "''") for nid in node_ids[:100]]
+        batch_size = 100
+        ids = list(id_set)
+        for start in range(0, len(ids), batch_size):
+            batch = ids[start : start + batch_size]
+            safe_ids    = [nid.replace("'", "''") for nid in batch]
             id_list_sql = ", ".join(f"'{nid}'" for nid in safe_ids)
-            rows = self._table.search().where(f"id IN ({id_list_sql})").limit(len(node_ids) + 10).to_list()
+            rows = (
+                self._table.search()
+                .where(f"id IN ({id_list_sql})")
+                .limit(len(batch) + 10)
+                .to_list()
+            )
             for row in rows:
-                if row["id"] in id_set:
-                    results[row["id"]] = {
-                        "id":      row["id"],
+                rid = row["id"]
+                if rid in id_set and rid not in results:
+                    results[rid] = {
+                        "id":      rid,
                         "source":  row.get("source", ""),
                         "page":    row.get("page", 0),
                         "section": row.get("section", ""),
                         "text":    row.get("text", ""),
                     }
-        except Exception:
-            pass
 
         return results
 
@@ -198,11 +205,13 @@ class LanceDBAdapter:
         candidates: list[tuple[dict, dict]] = []
 
         from tqdm import tqdm
+        import sys
         for row in tqdm(all_rows, desc="finding candidate pairs", unit="chunk"):
             vec = row["vector"]
             try:
                 neighbors = self._table.search(vec).limit(k_neighbors + 1).to_list()
-            except Exception:
+            except Exception as e:
+                print(f"[prism] WARNING: neighbor search failed for {row.get('id')}: {e}", file=sys.stderr)
                 continue
 
             for nbr in neighbors:
@@ -257,17 +266,19 @@ class LanceDBAdapter:
             return []
 
         id_set = set(node_ids)
-        safe_ids    = [nid.replace("'", "''") for nid in list(id_set)[:500]]
-        id_list_sql = ", ".join(f"'{nid}'" for nid in safe_ids)
-        try:
-            target_rows = (
+        batch_size = 500
+        ids = list(id_set)
+        target_rows: list[dict] = []
+        for start in range(0, len(ids), batch_size):
+            batch       = ids[start : start + batch_size]
+            safe_ids    = [nid.replace("'", "''") for nid in batch]
+            id_list_sql = ", ".join(f"'{nid}'" for nid in safe_ids)
+            target_rows.extend(
                 self._table.search()
                 .where(f"id IN ({id_list_sql})")
-                .limit(len(id_set) + 10)
+                .limit(len(batch) + 10)
                 .to_list()
             )
-        except Exception:
-            return []
 
         seen_pairs: set[frozenset] = set()
         candidates: list[tuple[dict, dict]] = []
@@ -278,7 +289,9 @@ class LanceDBAdapter:
                 continue
             try:
                 neighbors = self._table.search(vec).limit(k_neighbors + 1).to_list()
-            except Exception:
+            except Exception as e:
+                import sys
+                print(f"[prism] WARNING: neighbor search failed for {row.get('id')}: {e}", file=sys.stderr)
                 continue
 
             for nbr in neighbors:

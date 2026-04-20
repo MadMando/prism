@@ -8,12 +8,13 @@ on:
 
 jobs:
   test:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: Tests (Py ${{ matrix.python-version }}, ${{ matrix.extras }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+        extras: ["lancedb", "chroma", "qdrant", "weaviate", "pgvector"]
 
     steps:
       - uses: actions/checkout@v4
@@ -26,11 +27,32 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,${{ matrix.extras }}]"
 
       - name: Run tests
         run: |
           pytest tests/ -v --tb=short
+
+  coverage:
+    name: Coverage (all extras)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,lancedb,chroma,qdrant,weaviate,pgvector]"
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ --cov=prism --cov-report=term-missing --cov-fail-under=50
 
   lint:
     name: Lint (ruff)
