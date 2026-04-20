@@ -39,7 +39,7 @@ from .activation import SpreadingActivation, NodeActivation
 from .adapters.base import VectorAdapter
 from .adapters.embedder import Embedder
 
-__version__ = "0.2.3"
+__version__ = "0.2.3.post1"
 __author__  = "PRISM Contributors"
 
 __all__ = [
