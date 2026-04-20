@@ -103,7 +103,11 @@ Each edge has:
 ## Installation
 
 ```bash
+# Core install — bring your own vector store adapter
 pip install prism-rag
+
+# With built-in LanceDB support
+pip install prism-rag[lancedb]
 ```
 
 From source:
@@ -111,10 +115,10 @@ From source:
 ```bash
 git clone https://github.com/MadMando/prism
 cd prism
-pip install -e .
+pip install -e .[lancedb]
 ```
 
-**Requirements:** Python 3.11+, an existing LanceDB vector store, and an embedding provider (Ollama local *or* any OpenAI-compatible API).
+**Requirements:** Python 3.11+, an embedding provider (Ollama local *or* any OpenAI-compatible API), and a vector store (LanceDB via the `[lancedb]` extra, or any store via a custom adapter).
 
 ---
 
@@ -421,7 +425,7 @@ PRISM(
 ```
 prism/
 ├── prism/
-│   ├── __init__.py         public API (PRISM, VectorAdapter, Reranker, ...)
+│   ├── __init__.py         public API (PRISM, VectorAdapter, Embedder, Reranker, ...)
 │   ├── prism.py            PRISM — main entry point + add_documents()
 │   ├── edges.py            epistemic edge taxonomy + propagation weights
 │   ├── graph.py            EpistemicGraph (networkx MultiDiGraph + JSON serialisation)
@@ -434,7 +438,9 @@ prism/
 │   ├── inspect_cli.py      prism-stats + prism-inspect diagnostic CLIs
 │   └── adapters/
 │       ├── base.py         VectorAdapter Protocol (@runtime_checkable)
-│       └── lancedb.py      LanceDB adapter (Ollama + API embedding, candidate_pairs_for)
+│       ├── embedder.py     Embedder — reusable Ollama + OpenAI-compatible embedding helper
+│       ├── lancedb.py      LanceDB adapter (requires prism-rag[lancedb])
+│       └── template.py     copy-paste skeleton for building a custom adapter
 ├── scripts/
 │   └── build_graph.py      standalone build script
 ├── examples/
@@ -467,18 +473,24 @@ print(f"Added {n_new_edges} new edges")
 
 ## Custom Vector Stores
 
-PRISM ships a `VectorAdapter` Protocol. Implement it to connect PRISM to any vector store — Qdrant, Weaviate, Chroma, pgvector, or a fully custom store:
+PRISM ships a `VectorAdapter` Protocol. Implement it to connect PRISM to any vector store — Qdrant, Weaviate, Chroma, pgvector, or a fully custom store.
+
+**Quickest path:** copy `prism/adapters/template.py` from the repo — it's a fully-commented skeleton with all 7 methods stubbed and embedding already wired in via the shared `Embedder` helper.
 
 ```python
 from prism import PRISM, VectorAdapter
+from prism.adapters.embedder import Embedder
 
 class MyQdrantAdapter:
+    def __init__(self, ...):
+        # Reuse the built-in Embedder — no need to implement embedding yourself
+        self._embedder = Embedder(model="nomic-embed-text")
+
     def seed_scores(self, query, top_k=20, source_filter=None) -> dict[str, float]:
-        # embed query, search Qdrant, return {id: score}
+        vec = self._embedder.embed(query)
+        # search Qdrant, return {id: score}
         ...
-    def get_chunks(self, node_ids) -> dict[str, dict]:
-        # fetch chunk dicts for given IDs
-        ...
+    def get_chunks(self, node_ids) -> dict[str, dict]: ...
     def connect(self) -> None: ...
     def populate_graph_nodes(self, graph) -> int: ...
     def candidate_pairs(self, k_neighbors=8, cross_source_only=False, max_pairs=None): ...
@@ -494,6 +506,8 @@ p = PRISM(
     ...
 )
 ```
+
+The `Embedder` class supports both Ollama and any OpenAI-compatible API — pass `api_url` and `api_key` to switch modes. It handles both embedding providers so you don't have to.
 
 ---
 

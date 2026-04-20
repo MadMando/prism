@@ -50,10 +50,14 @@ The result is a **structured epistemic answer** with five buckets:
 ## Installation
 
 ```bash
+# Core — bring your own vector store adapter
 pip install prism-rag
+
+# With built-in LanceDB support
+pip install prism-rag[lancedb]
 ```
 
-Requires Python 3.11+, an existing LanceDB vector store, and an embedding provider.
+Requires Python 3.11+ and an embedding provider (Ollama or any OpenAI-compatible API). Bring your own vector store via a custom adapter, or use LanceDB with the `[lancedb]` extra.
 
 ---
 
@@ -211,11 +215,25 @@ prism-build --ollama-url http://your-ollama-host:11434 --filter-model llama3.1:8
 
 ## No Re-embedding Required
 
-PRISM works **on top of your existing vector store**. If you have a LanceDB corpus with embeddings, you don't need to re-index anything.
+PRISM works **on top of your existing vector store**. If you have an existing corpus with embeddings, you don't need to re-index anything.
 
 - Existing vectors → used as-is for seed activation
 - Epistemic graph → built from text via LLM, stored as a separate `.json.gz` file
 - Fallback → if no graph exists, PRISM automatically falls back to pure vector search
+
+## Custom Vector Stores
+
+PRISM is not limited to LanceDB. Implement the `VectorAdapter` Protocol to connect any vector store — Qdrant, Weaviate, Chroma, pgvector, or your own. Copy `prism/adapters/template.py` from the repo for a fully-commented starting point. The built-in `Embedder` class handles Ollama and OpenAI-compatible embedding so you don't have to re-implement it:
+
+```python
+from prism.adapters.embedder import Embedder
+
+emb = Embedder(model="nomic-embed-text")                         # Ollama
+emb = Embedder(model="text-embedding-3-small",                   # API
+               api_url="https://api.openai.com/v1/embeddings",
+               api_key="sk-...")
+vec = emb.embed("some text")   # list[float]
+```
 
 ---
 
