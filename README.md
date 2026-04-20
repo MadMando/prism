@@ -103,11 +103,15 @@ Each edge has:
 ## Installation
 
 ```bash
-# Core install — bring your own vector store adapter
+# Core — bring your own vector store adapter
 pip install prism-rag
 
-# With built-in LanceDB support
-pip install prism-rag[lancedb]
+# With a built-in vector store adapter:
+pip install prism-rag[lancedb]    # LanceDB
+pip install prism-rag[chroma]     # ChromaDB
+pip install prism-rag[qdrant]     # Qdrant
+pip install prism-rag[weaviate]   # Weaviate (v4 client)
+pip install prism-rag[pgvector]   # PostgreSQL + pgvector
 ```
 
 From source:
@@ -115,10 +119,10 @@ From source:
 ```bash
 git clone https://github.com/MadMando/prism
 cd prism
-pip install -e .[lancedb]
+pip install -e .[lancedb]   # or [chroma], [qdrant], etc.
 ```
 
-**Requirements:** Python 3.11+, an embedding provider (Ollama local *or* any OpenAI-compatible API), and a vector store (LanceDB via the `[lancedb]` extra, or any store via a custom adapter).
+**Requirements:** Python 3.11+, an embedding provider (Ollama local *or* any OpenAI-compatible API), and a vector store.
 
 ---
 
@@ -436,10 +440,15 @@ prism/
 │   ├── result.py           EpistemicResult + EpistemicChunk dataclasses
 │   ├── cli.py              prism-build CLI
 │   ├── inspect_cli.py      prism-stats + prism-inspect diagnostic CLIs
+│   ├── viz_cli.py          prism-viz — export to Gephi GEXF or D3 JSON
 │   └── adapters/
 │       ├── base.py         VectorAdapter Protocol (@runtime_checkable)
 │       ├── embedder.py     Embedder — reusable Ollama + OpenAI-compatible embedding helper
 │       ├── lancedb.py      LanceDB adapter (requires prism-rag[lancedb])
+│       ├── chroma.py       ChromaDB adapter (requires prism-rag[chroma])
+│       ├── qdrant.py       Qdrant adapter (requires prism-rag[qdrant])
+│       ├── weaviate.py     Weaviate v4 adapter (requires prism-rag[weaviate])
+│       ├── pgvector.py     pgvector/PostgreSQL adapter (requires prism-rag[pgvector])
 │       └── template.py     copy-paste skeleton for building a custom adapter
 ├── scripts/
 │   └── build_graph.py      standalone build script
@@ -471,25 +480,88 @@ print(f"Added {n_new_edges} new edges")
 
 ---
 
+## Built-in Vector Store Adapters
+
+PRISM ships adapters for four popular vector stores in addition to LanceDB. All share the same interface and support both Ollama and OpenAI-compatible embedding providers.
+
+### ChromaDB
+
+```python
+from prism import PRISM
+from prism.adapters.chroma import ChromaAdapter
+
+adapter = ChromaAdapter(
+    collection_name = "knowledge",
+    host            = "localhost",
+    port            = 8000,
+    embed_model     = "nomic-embed-text",
+)
+p = PRISM(graph_path="prism_graph.json.gz", adapter=adapter, ...)
+```
+
+> Your collection should be configured with `hnsw:space="cosine"` for correct similarity scores.
+
+### Qdrant
+
+```python
+from prism.adapters.qdrant import QdrantAdapter
+
+adapter = QdrantAdapter(
+    collection_name = "knowledge",
+    url             = "http://localhost:6333",
+    embed_model     = "nomic-embed-text",
+)
+```
+
+> Chunk IDs are read from the `"id"` key in the point payload (configurable via `id_payload_key`).
+
+### Weaviate
+
+```python
+from prism.adapters.weaviate import WeaviateAdapter
+
+adapter = WeaviateAdapter(
+    collection_name = "Knowledge",
+    host            = "localhost",
+    port            = 8080,
+    id_property     = "chunk_id",  # property holding the PRISM chunk ID
+    embed_model     = "nomic-embed-text",
+)
+```
+
+> Uses the Weaviate v4 Python client. Objects must have a `chunk_id` property (or whatever `id_property` you configure) to be retrievable by ID.
+
+### pgvector (PostgreSQL)
+
+```python
+from prism.adapters.pgvector import PgvectorAdapter
+
+adapter = PgvectorAdapter(
+    dsn         = "postgresql://user:pass@localhost:5432/mydb",
+    table       = "chunks",   # table with id, source, page, section, text, embedding columns
+    embed_model = "nomic-embed-text",
+)
+```
+
+> Requires a table with a `vector(N)` column (pgvector extension). Column names are configurable.
+
+---
+
 ## Custom Vector Stores
 
-PRISM ships a `VectorAdapter` Protocol. Implement it to connect PRISM to any vector store — Qdrant, Weaviate, Chroma, pgvector, or a fully custom store.
+Implement the `VectorAdapter` Protocol to connect PRISM to any store not listed above.
 
-**Quickest path:** copy `prism/adapters/template.py` from the repo — it's a fully-commented skeleton with all 7 methods stubbed and embedding already wired in via the shared `Embedder` helper.
+**Quickest path:** copy `prism/adapters/template.py` from the repo — it's a fully-commented skeleton with all 7 methods stubbed and the `Embedder` helper already wired in.
 
 ```python
 from prism import PRISM, VectorAdapter
 from prism.adapters.embedder import Embedder
 
-class MyQdrantAdapter:
+class MyAdapter:
     def __init__(self, ...):
-        # Reuse the built-in Embedder — no need to implement embedding yourself
         self._embedder = Embedder(model="nomic-embed-text")
 
-    def seed_scores(self, query, top_k=20, source_filter=None) -> dict[str, float]:
-        vec = self._embedder.embed(query)
-        # search Qdrant, return {id: score}
-        ...
+    def seed_scores(self, query, top_k=20, source_filter=None) -> dict[str, float]: ...
     def get_chunks(self, node_ids) -> dict[str, dict]: ...
     def connect(self) -> None: ...
     def populate_graph_nodes(self, graph) -> int: ...
@@ -497,17 +569,10 @@ class MyQdrantAdapter:
     def candidate_pairs_for(self, node_ids, k_neighbors=8, cross_source_only=False): ...
     def stats(self) -> dict: ...
 
-# Protocol is @runtime_checkable
-assert isinstance(MyQdrantAdapter(), VectorAdapter)
+assert isinstance(MyAdapter(), VectorAdapter)  # Protocol is @runtime_checkable
 
-p = PRISM(
-    graph_path = "/path/to/prism_graph.json.gz",
-    adapter    = MyQdrantAdapter(),
-    ...
-)
+p = PRISM(graph_path="prism_graph.json.gz", adapter=MyAdapter(), ...)
 ```
-
-The `Embedder` class supports both Ollama and any OpenAI-compatible API — pass `api_url` and `api_key` to switch modes. It handles both embedding providers so you don't have to.
 
 ---
 
@@ -535,6 +600,33 @@ result = p.retrieve("your question")
 ```
 
 The reranker runs after epistemic bucketing as a final pass over all retrieved chunks. If the reranker raises an exception, PRISM falls back to the original spreading-activation order.
+
+---
+
+## Graph Visualisation
+
+Export the epistemic graph for visual exploration in Gephi or any D3.js-based tool:
+
+```bash
+# D3 JSON (force-directed graph) — default
+prism-viz prism_graph.json.gz --output graph.json
+
+# Gephi GEXF — open directly in Gephi for layout and clustering
+prism-viz prism_graph.json.gz --format gexf --output graph.gexf
+
+# Filter: only high-confidence supporting/refuting edges
+prism-viz prism_graph.json.gz --format d3 --edge-types supports,refutes --min-confidence 0.8
+
+# Filter: only chunks from one source
+prism-viz prism_graph.json.gz --format d3 --source-filter "dmbok"
+
+# Cap size for large graphs (keeps top-N nodes by degree)
+prism-viz prism_graph.json.gz --format d3 --max-nodes 500
+```
+
+**D3 JSON format** — nodes have `id`, `source`, `group` (= source, for colour), and `degree`; links have `source`, `target`, `type`, `weight`, and `confidence`. Load directly with `d3.json()` and `d3.forceSimulation`.
+
+**GEXF format** — standard Gephi format. Edge type, weight, confidence, and rationale are exported as edge attributes. Open in Gephi: `File → Open → graph.gexf`.
 
 ---
 
@@ -612,8 +704,8 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 - [x] Pluggable `VectorAdapter` Protocol for custom vector stores
 - [x] Reranker hook for cross-encoder / LLM-based reranking
 - [x] `prism-stats` and `prism-inspect` diagnostic CLIs
-- [ ] Additional vector store adapters (Chroma, Qdrant, Weaviate, pgvector)
-- [ ] Graph visualisation (`prism-viz` CLI — exports to Gephi / D3)
+- [x] Additional vector store adapters (Chroma, Qdrant, Weaviate, pgvector)
+- [x] Graph visualisation (`prism-viz` CLI — exports to Gephi GEXF / D3 JSON)
 - [ ] Export to Neo4j / NetworkX formats
 - [ ] Retrieval quality benchmarks on standard QA datasets
 

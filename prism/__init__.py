@@ -39,7 +39,7 @@ from .activation import SpreadingActivation, NodeActivation
 from .adapters.base import VectorAdapter
 from .adapters.embedder import Embedder
 
-__version__ = "0.2.3.post1"
+__version__ = "0.2.4"
 __author__  = "PRISM Contributors"
 
 __all__ = [
@@ -69,5 +69,29 @@ __all__ = [
 try:
     from .adapters.lancedb import LanceDBAdapter
     __all__.append("LanceDBAdapter")
+except ImportError:
+    pass
+
+try:
+    from .adapters.chroma import ChromaAdapter
+    __all__.append("ChromaAdapter")
+except ImportError:
+    pass
+
+try:
+    from .adapters.qdrant import QdrantAdapter
+    __all__.append("QdrantAdapter")
+except ImportError:
+    pass
+
+try:
+    from .adapters.weaviate import WeaviateAdapter
+    __all__.append("WeaviateAdapter")
+except ImportError:
+    pass
+
+try:
+    from .adapters.pgvector import PgvectorAdapter
+    __all__.append("PgvectorAdapter")
 except ImportError:
     pass

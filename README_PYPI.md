@@ -53,11 +53,15 @@ The result is a **structured epistemic answer** with five buckets:
 # Core — bring your own vector store adapter
 pip install prism-rag
 
-# With built-in LanceDB support
-pip install prism-rag[lancedb]
+# With a built-in adapter:
+pip install prism-rag[lancedb]    # LanceDB
+pip install prism-rag[chroma]     # ChromaDB
+pip install prism-rag[qdrant]     # Qdrant
+pip install prism-rag[weaviate]   # Weaviate (v4 client)
+pip install prism-rag[pgvector]   # PostgreSQL + pgvector
 ```
 
-Requires Python 3.11+ and an embedding provider (Ollama or any OpenAI-compatible API). Bring your own vector store via a custom adapter, or use LanceDB with the `[lancedb]` extra.
+Requires Python 3.11+ and an embedding provider (Ollama or any OpenAI-compatible API).
 
 ---
 
@@ -221,18 +225,35 @@ PRISM works **on top of your existing vector store**. If you have an existing co
 - Epistemic graph → built from text via LLM, stored as a separate `.json.gz` file
 - Fallback → if no graph exists, PRISM automatically falls back to pure vector search
 
-## Custom Vector Stores
+## Vector Store Adapters
 
-PRISM is not limited to LanceDB. Implement the `VectorAdapter` Protocol to connect any vector store — Qdrant, Weaviate, Chroma, pgvector, or your own. Copy `prism/adapters/template.py` from the repo for a fully-commented starting point. The built-in `Embedder` class handles Ollama and OpenAI-compatible embedding so you don't have to re-implement it:
+PRISM ships adapters for LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector. All share the same interface and support Ollama or OpenAI-compatible embedding:
 
 ```python
-from prism.adapters.embedder import Embedder
+from prism.adapters.chroma   import ChromaAdapter
+from prism.adapters.qdrant   import QdrantAdapter
+from prism.adapters.weaviate import WeaviateAdapter
+from prism.adapters.pgvector import PgvectorAdapter
 
-emb = Embedder(model="nomic-embed-text")                         # Ollama
-emb = Embedder(model="text-embedding-3-small",                   # API
-               api_url="https://api.openai.com/v1/embeddings",
-               api_key="sk-...")
-vec = emb.embed("some text")   # list[float]
+# e.g. Qdrant
+adapter = QdrantAdapter(collection_name="knowledge", url="http://localhost:6333")
+p = PRISM(graph_path="prism_graph.json.gz", adapter=adapter, ...)
+```
+
+To connect a different store, implement the `VectorAdapter` Protocol — copy `prism/adapters/template.py` for a fully-commented skeleton. The built-in `Embedder` class handles Ollama and OpenAI-compatible embedding so you don't have to re-implement it.
+
+## Graph Visualisation
+
+```bash
+# D3 JSON for force-directed visualisation
+prism-viz prism_graph.json.gz --output graph.json
+
+# Gephi GEXF — open in Gephi for layout and clustering
+prism-viz prism_graph.json.gz --format gexf --output graph.gexf
+
+# Filter to specific edge types or sources
+prism-viz prism_graph.json.gz --edge-types supports,refutes --min-confidence 0.8
+prism-viz prism_graph.json.gz --source-filter "dmbok" --max-nodes 500
 ```
 
 ---
