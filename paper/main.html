@@ -181,10 +181,12 @@
 <div class="title-block">
   <h1 class="title">PRISM: Epistemic Graph Retrieval via Typed Spreading Activation</h1>
   <p class="subtitle">Structured Knowledge Retrieval Through Convergence Scoring and Epistemic Bucketing</p>
-  <p class="authors"><strong>PRISM Contributors</strong></p>
+  <p class="authors"><strong>MadMando</strong> &nbsp;·&nbsp; <strong>Claude (Anthropic)</strong></p>
+  <p class="affil"><a href="https://github.com/MadMando">github.com/MadMando</a> &nbsp;·&nbsp;
+     Claude Sonnet 4.6 / Opus 4.7 — adapter architecture, multi-backend refactor, manuscript revisions</p>
   <p class="affil"><a href="https://github.com/MadMando/prism">https://github.com/MadMando/prism</a> &nbsp;·&nbsp;
      <a href="https://pypi.org/project/prism-rag/">https://pypi.org/project/prism-rag/</a></p>
-  <p class="date">April 2026</p>
+  <p class="date">April 2026 — revised for v0.2.5</p>
 </div>
 
 <!-- ── Abstract ───────────────────────────────────────────────────────────── -->
@@ -269,9 +271,11 @@
       were reached.</li>
 </ol>
 
-<p>PRISM makes no assumptions about the internal structure of the underlying vector store —
-it works on top of any existing LanceDB corpus without re-embedding or re-indexing. When no
-graph is available, it degrades gracefully to standard vector retrieval.</p>
+<p>PRISM makes no assumptions about the internal structure of the underlying vector store. The
+reference implementation ships adapters for LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector
+behind a single <code>VectorAdapter</code> protocol, and works on top of any existing corpus
+without re-embedding or re-indexing. When no graph is available, it degrades gracefully to
+standard vector retrieval.</p>
 
 <h3>Contributions</h3>
 <ul>
@@ -281,8 +285,11 @@ graph is available, it degrades gracefully to standard vector retrieval.</p>
       from multiple independent query perspectives (§3.2).</li>
   <li>An <em>epistemic bucketing</em> output schema that structures retrieval results for
       downstream LLM consumption (§3.3).</li>
-  <li>An open-source Python library with a LanceDB adapter, CLI, and a self-contained
-      synthetic benchmark (<code>pip install prism-rag</code>).</li>
+  <li>An open-source Python library (<code>prism-rag</code> v0.2.5) with built-in adapters for
+      LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector, diagnostic CLIs
+      (<code>prism-build</code>, <code>prism-stats</code>, <code>prism-inspect</code>,
+      <code>prism-viz</code>), and a self-contained synthetic benchmark
+      (<code>pip install prism-rag</code>).</li>
 </ul>
 
 <!-- ── 2. Background ───────────────────────────────────────────────────────── -->
