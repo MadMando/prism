@@ -3,6 +3,10 @@ prism.adapters.lancedb
 ----------------------
 LanceDB adapter — connects PRISM to an existing LanceDB vector store.
 
+Requires the lancedb extra::
+
+    pip install prism-rag[lancedb]
+
 Responsibilities:
   1. Seed activation:  embed query → vector search → initial {node_id: score} map
   2. Candidate pairs:  for graph building, find semantically similar chunk pairs
@@ -11,7 +15,7 @@ Responsibilities:
 Embedding providers supported
 ------------------------------
 Option A — Ollama (local, default):
-    LanceDBAdapter(ollama_url="http://localhost:11434", embed_model="nomic-embed-text")
+    LanceDBAdapter(embed_model="nomic-embed-text")
 
 Option B — Any OpenAI-compatible embeddings API:
     LanceDBAdapter(
@@ -19,9 +23,6 @@ Option B — Any OpenAI-compatible embeddings API:
         embed_api_key = "sk-...",
         embed_model   = "text-embedding-3-small",
     )
-    Works with: OpenAI, Azure OpenAI, Together AI, Jina, Cohere, any
-    OpenAI-compatible endpoint that accepts {"model": ..., "input": ...}
-    and returns {"data": [{"embedding": [...]}]}.
 """
 
 from __future__ import annotations
@@ -29,33 +30,26 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-import lancedb
-import requests
+try:
+    import lancedb
+except ImportError as _e:
+    raise ImportError(
+        "LanceDBAdapter requires lancedb. Install it with:\n"
+        "    pip install prism-rag[lancedb]"
+    ) from _e
+
+from .embedder import Embedder
 
 
 class LanceDBAdapter:
     """
     Connects PRISM to an existing LanceDB knowledge base.
 
-    Embedding provider — choose one:
-
-    Ollama (default, local):
-        ollama_url  = "http://localhost:11434"  (or your remote Ollama host)
-        embed_model = "nomic-embed-text"         (or any model loaded in Ollama)
-
-    OpenAI-compatible API:
-        embed_api_url = "https://api.openai.com/v1/embeddings"
-        embed_api_key = "sk-..."
-        embed_model   = "text-embedding-3-small"
-
-    The model you pass here MUST match the model used when the LanceDB
-    corpus was originally built — dimensions must be identical.
-
     Args:
         db_path:        Path to the LanceDB directory
         table_name:     LanceDB table name (default "knowledge")
-        ollama_url:     Ollama base URL (used when embed_api_key is not set)
         embed_model:    Embedding model name
+        ollama_url:     Ollama base URL (used when embed_api_key is not set)
         embed_api_url:  Full URL for OpenAI-compatible embeddings endpoint
         embed_api_key:  API key — if set, switches to API mode (ignores ollama_url)
         embed_timeout:  Request timeout in seconds (default 60)
@@ -63,30 +57,27 @@ class LanceDBAdapter:
 
     def __init__(
         self,
-        db_path:        str | Path,
-        table_name:     str = "knowledge",
+        db_path:       str | Path,
+        table_name:    str = "knowledge",
+        embed_model:   str = "nomic-embed-text",
         # Ollama (default)
-        ollama_url:     str = "http://localhost:11434",
-        embed_model:    str = "nomic-embed-text",
+        ollama_url:    str = "http://localhost:11434",
         # OpenAI-compatible API (alternative)
-        embed_api_url:  Optional[str] = None,
-        embed_api_key:  Optional[str] = None,
+        embed_api_url: Optional[str] = None,
+        embed_api_key: Optional[str] = None,
         # Shared
-        embed_timeout:  int = 60,
+        embed_timeout: int = 60,
     ):
-        self.db_path       = Path(db_path)
-        self.table_name    = table_name
-        self.ollama_url    = ollama_url.rstrip("/")
-        self.embed_model   = embed_model
-        self.embed_api_url = embed_api_url
-        self.embed_api_key = embed_api_key
-        self.embed_timeout = embed_timeout
+        self.db_path    = Path(db_path)
+        self.table_name = table_name
 
-        # If an API key is provided, use the API path
-        self._use_api = bool(embed_api_key)
-        if self._use_api and not embed_api_url:
-            # Default to OpenAI if no URL given but key is present
-            self.embed_api_url = "https://api.openai.com/v1/embeddings"
+        self._embedder = Embedder(
+            model      = embed_model,
+            api_url    = embed_api_url,
+            api_key    = embed_api_key,
+            ollama_url = ollama_url,
+            timeout    = embed_timeout,
+        )
 
         self._db:    Optional[lancedb.DBConnection] = None
         self._table = None
@@ -111,34 +102,8 @@ class LanceDBAdapter:
     # ── Embedding ─────────────────────────────────────────────────────────────
 
     def embed(self, text: str) -> list[float]:
-        """Embed text using the configured provider (Ollama or API)."""
-        if self._use_api:
-            return self._embed_api(text)
-        return self._embed_ollama(text)
-
-    def _embed_ollama(self, text: str) -> list[float]:
-        """Embed via Ollama (local or remote)."""
-        resp = requests.post(
-            f"{self.ollama_url}/api/embeddings",
-            json={"model": self.embed_model, "prompt": text},
-            timeout=self.embed_timeout,
-        )
-        resp.raise_for_status()
-        return resp.json()["embedding"]
-
-    def _embed_api(self, text: str) -> list[float]:
-        """Embed via any OpenAI-compatible embeddings API."""
-        resp = requests.post(
-            self.embed_api_url,
-            headers={
-                "Authorization": f"Bearer {self.embed_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={"model": self.embed_model, "input": text},
-            timeout=self.embed_timeout,
-        )
-        resp.raise_for_status()
-        return resp.json()["data"][0]["embedding"]
+        """Embed text using the configured provider."""
+        return self._embedder.embed(text)
 
     # ── Seed activation ───────────────────────────────────────────────────────
 
@@ -155,7 +120,7 @@ class LanceDBAdapter:
         Similarity is (1 - cosine_distance), so higher = more relevant.
         """
         self._ensure_connected()
-        vec = self.embed(query)
+        vec = self._embedder.embed(query)
 
         fetch = top_k * 4 if source_filter else top_k * 2
         results = self._table.search(vec).limit(fetch).to_list()
@@ -182,15 +147,12 @@ class LanceDBAdapter:
         if not node_ids:
             return {}
 
-        # LanceDB doesn't have a native "get by ID list" — we fetch candidates
-        # by scanning (for small result sets this is fast enough)
-        # For large corpora, consider adding a scalar index on 'id'.
         id_set = set(node_ids)
         results = {}
 
         try:
-            # Try using where clause for efficiency
-            id_list_sql = ", ".join(f"'{nid}'" for nid in node_ids[:100])  # limit for SQL
+            safe_ids  = [nid.replace("'", "''") for nid in node_ids[:100]]
+            id_list_sql = ", ".join(f"'{nid}'" for nid in safe_ids)
             rows = self._table.search().where(f"id IN ({id_list_sql})").limit(len(node_ids) + 10).to_list()
             for row in rows:
                 if row["id"] in id_set:
@@ -202,7 +164,6 @@ class LanceDBAdapter:
                         "text":    row.get("text", ""),
                     }
         except Exception:
-            # Fallback: scan via vector search from a zero vector (not ideal but functional)
             pass
 
         return results
@@ -296,9 +257,8 @@ class LanceDBAdapter:
             return []
 
         id_set = set(node_ids)
-
-        # Fetch the rows for the target node_ids
-        id_list_sql = ", ".join(f"'{nid}'" for nid in list(id_set)[:500])
+        safe_ids    = [nid.replace("'", "''") for nid in list(id_set)[:500]]
+        id_list_sql = ", ".join(f"'{nid}'" for nid in safe_ids)
         try:
             target_rows = (
                 self._table.search()
@@ -381,5 +341,5 @@ class LanceDBAdapter:
             "sources": sources,
             "db_path": str(self.db_path),
             "table": self.table_name,
-            "embed_model": self.embed_model,
+            "embed_model": self._embedder.model,
         }

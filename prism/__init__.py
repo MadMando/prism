@@ -37,9 +37,9 @@ from .extractor import EpistemicExtractor
 from .filter import EpistemicFilter
 from .activation import SpreadingActivation, NodeActivation
 from .adapters.base import VectorAdapter
-from .adapters.lancedb import LanceDBAdapter
+from .adapters.embedder import Embedder
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 __author__  = "PRISM Contributors"
 
 __all__ = [
@@ -61,6 +61,13 @@ __all__ = [
     "EpistemicFilter",
     "SpreadingActivation",
     "NodeActivation",
+    # Adapter interface
     "VectorAdapter",
-    "LanceDBAdapter",
+    "Embedder",
 ]
+
+try:
+    from .adapters.lancedb import LanceDBAdapter
+    __all__.append("LanceDBAdapter")
+except ImportError:
+    pass
