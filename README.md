@@ -1,5 +1,9 @@
 <div align="center">
 
+[![AI Attribution — AIA HAb SeCeNc Hin R Claude Sonnet 4.6 v1.0](docs/attribution/attribution-statement.png)](https://aiattribution.github.io/statements/AIA-HAb-SeCeNc-Hin-R-?model=Claude%20Sonnet%204.6-v1.0)
+
+ <sub>This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of [Claude Sonnet 4.6](https://anthropic.com/claude) (Anthropic). Architecture decisions, domain framing, and editorial judgement remain the author's own. Disclosed using the [AI Attribution Toolkit](https://aiattribution.github.io/).
+
 # PRISM
 
 **Propagation & Retrieval via Informed Semantic Mapping**
@@ -13,10 +17,6 @@
 [![AI Attribution](https://img.shields.io/badge/AI%20attribution-disclosed-blueviolet?style=flat-square)](https://aiattribution.github.io/)
 
 </div>
-
-[![AI Attribution — AIA HAb SeCeNc Hin R Claude Sonnet 4.6 v1.0](docs/attribution/attribution-statement.png)](https://aiattribution.github.io/statements/AIA-HAb-SeCeNc-Hin-R-?model=Claude%20Sonnet%204.6-v1.0)
-
-> This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of [Claude Sonnet 4.6](https://anthropic.com/claude) (Anthropic). Architecture decisions, domain framing, and editorial judgement remain the author's own. Disclosed using the [AI Attribution Toolkit](https://aiattribution.github.io/).
 
 ---
 
