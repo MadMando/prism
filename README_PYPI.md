@@ -10,7 +10,7 @@
 
 [![AI Attribution — AIA HAb SeCeNc Hin R Claude Sonnet 4.6 v1.0](https://raw.githubusercontent.com/MadMando/prism/main/docs/attribution/attribution-statement.png)](https://aiattribution.github.io/statements/AIA-HAb-SeCeNc-Hin-R-?model=Claude%20Sonnet%204.6-v1.0)
 
-> This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of [Claude Sonnet 4.6](https://anthropic.com/claude) (Anthropic). Architecture decisions, domain framing, and editorial judgement remain the author's own. Disclosed using the [AI Attribution Toolkit](https://aiattribution.github.io/).
+<sub>This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of [Claude Sonnet 4.6](https://anthropic.com/claude) (Anthropic). Architecture decisions, domain framing, and editorial judgement remain the author's own. Disclosed using the [AI Attribution Toolkit](https://aiattribution.github.io/).</sub>
 
 PRISM layers a **typed epistemic knowledge graph** over your existing vector store, then uses **spreading activation** to surface knowledge structured by *how it relates* — not just *how similar it is*.
 
