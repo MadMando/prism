@@ -14,17 +14,7 @@
 
 </div>
 
-<table><tr><td>
-<strong>AI Attribution</strong> &nbsp;
-<a href="https://aiattribution.github.io/">
-<img src="docs/attribution/human-ai-blend.png" height="22" alt="Human-AI blend" title="Human-AI blend">
-<img src="docs/attribution/content-edits.png"   height="22" alt="Content edits"   title="Content edits">
-<img src="docs/attribution/new-content.png"      height="22" alt="New content"     title="New content">
-<img src="docs/attribution/human-initiated.png"  height="22" alt="Human-initiated" title="Human-initiated">
-<img src="docs/attribution/reviewed.png"         height="22" alt="Reviewed &amp; approved" title="Reviewed &amp; approved">
-</a>
-&nbsp; This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of <a href="https://anthropic.com/claude">Claude</a> (Anthropic). Architecture decisions, domain framing, and editorial judgement remain the author's own. Disclosed using the <a href="https://aiattribution.github.io/">AI Attribution Toolkit</a>.
-</td></tr></table>
+<table><tr><td><strong>AI Attribution</strong> &nbsp; <a href="https://aiattribution.github.io/"><img src="docs/attribution/human-ai-blend.png" height="22" alt="Human-AI blend" title="Human-AI blend"> <img src="docs/attribution/content-edits.png" height="22" alt="Content edits" title="Content edits"> <img src="docs/attribution/new-content.png" height="22" alt="New content" title="New content"> <img src="docs/attribution/human-initiated.png" height="22" alt="Human-initiated" title="Human-initiated"> <img src="docs/attribution/reviewed.png" height="22" alt="Reviewed and approved" title="Reviewed and approved"></a> &nbsp; This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of <a href="https://anthropic.com/claude">Claude</a> (Anthropic). Architecture decisions, domain framing, and editorial judgement remain the author's own. Disclosed using the <a href="https://aiattribution.github.io/">AI Attribution Toolkit</a>.</td></tr></table>
 
 ---
 
