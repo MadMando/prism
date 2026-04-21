@@ -14,7 +14,7 @@
 
 </div>
 
-<table><tr><td><a href="https://aiattribution.github.io/statements/AIA-HAb-SeCeNc-Hin-R-?model=Claude%20Sonnet%204.6-v1.0">AIA HAb SeCeNc Hin R Claude Sonnet 4.6 v1.0</a> <img src="docs/attribution/human-ai-blend.png" height="22" alt="Human-AI blend"> <img src="docs/attribution/stylistic-edits.png" height="22" alt="Stylistic edits"> <img src="docs/attribution/content-edits.png" height="22" alt="Content edits"> <img src="docs/attribution/new-content.png" height="22" alt="New content"> <img src="docs/attribution/human-initiated.png" height="22" alt="Human-initiated"> <img src="docs/attribution/reviewed.png" height="22" alt="Reviewed"></td></tr></table>
+<table><tr><td bgcolor="#f3e8ff"><a href="https://aiattribution.github.io/statements/AIA-HAb-SeCeNc-Hin-R-?model=Claude%20Sonnet%204.6-v1.0">AIA HAb SeCeNc Hin R Claude Sonnet 4.6 v1.0</a> <img src="docs/attribution/human-ai-blend.png" height="22" alt="Human-AI blend"> <img src="docs/attribution/stylistic-edits.png" height="22" alt="Stylistic edits"> <img src="docs/attribution/content-edits.png" height="22" alt="Content edits"> <img src="docs/attribution/new-content.png" height="22" alt="New content"> <img src="docs/attribution/human-initiated.png" height="22" alt="Human-initiated"> <img src="docs/attribution/reviewed.png" height="22" alt="Reviewed"></td></tr></table>
 
 > This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of [Claude Sonnet 4.6](https://anthropic.com/claude) (Anthropic). Architecture decisions, domain framing, and editorial judgement remain the author's own. Disclosed using the [AI Attribution Toolkit](https://aiattribution.github.io/).
 
