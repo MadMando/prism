@@ -59,23 +59,264 @@ pip install prism-rag[chroma]     # ChromaDB
 pip install prism-rag[qdrant]     # Qdrant
 pip install prism-rag[weaviate]   # Weaviate (v4 client)
 pip install prism-rag[pgvector]   # PostgreSQL + pgvector
+
+# With the interactive explorer:
+pip install prism-rag[lancedb,explorer]
+
+# With Neo4j Bolt export:
+pip install prism-rag[neo4j]
 ```
 
 Requires Python 3.11+ and an embedding provider (Ollama or any OpenAI-compatible API).
 
 ---
 
-## Quick Start
+## CLI Quickstart
 
-### 1. Build the epistemic graph (one-time)
+This is the typical end-to-end workflow from an existing vector store to structured retrieval.
+
+### Step 1 — Build the graph
+
+Point PRISM at your existing LanceDB store. The graph is built once and saved to a `.json.gz` file.
+
+```bash
+prism-build \
+  --lancedb-path /path/to/lancedb \
+  --graph-path   prism_graph.json.gz \
+  --llm-api-key  $OPENAI_API_KEY
+```
+
+With Ollama embeddings and a local filter model:
+
+```bash
+prism-build \
+  --lancedb-path  /path/to/lancedb \
+  --graph-path    prism_graph.json.gz \
+  --ollama-url    http://localhost:11434 \
+  --embed-model   nomic-embed-text \
+  --filter-model  llama3.1:8b \
+  --llm-base-url  https://api.openai.com \
+  --llm-model     gpt-4o-mini \
+  --llm-api-key   $OPENAI_API_KEY
+```
+
+If interrupted, the build **resumes automatically from its checkpoint** — just re-run the same command.
+
+### Step 2 — Verify the graph
+
+```bash
+prism-stats prism_graph.json.gz
+```
+
+Also show LanceDB stats alongside:
+
+```bash
+prism-stats prism_graph.json.gz --lancedb-path /path/to/lancedb
+```
+
+Output JSON for scripting:
+
+```bash
+prism-stats prism_graph.json.gz --json
+```
+
+### Step 3 — Explore interactively
+
+```bash
+prism-explore \
+  --lancedb-path /path/to/lancedb \
+  --graph-path   prism_graph.json.gz \
+  --embed-model  nomic-embed-text
+```
+
+Open `http://localhost:7860` to get a force-directed graph with semantic search. Type a question and watch activation spread — nodes glow by bucket (primary / supporting / contrasting / qualifying / superseded).
+
+---
+
+## CLI Reference
+
+### `prism-build` — Build the epistemic graph
+
+```
+prism-build --lancedb-path PATH --graph-path PATH [options]
+```
+
+**Graph shape:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--k-neighbors` | `8` | Semantic neighbours per chunk used as candidate pairs |
+| `--cross-source-only` | off | Only extract edges between different source documents |
+| `--min-confidence` | `0.65` | Drop edges below this confidence score |
+| `--max-pairs` | unlimited | Cap candidate pairs (useful for large corpora) |
+| `--force` | off | Rebuild even if the graph file already exists |
+| `--no-resume` | off | Ignore checkpoint, start from scratch |
+
+**Embeddings:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--table-name` | `knowledge` | LanceDB table name |
+| `--ollama-url` | `http://localhost:11434` | Ollama base URL |
+| `--embed-model` | `nomic-embed-text` | Embedding model (must match ingest-time model) |
+
+**Stage 1 — local filter (fast, free):**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--filter-model` | `llama3.1:8b` | Ollama model for binary pre-filter |
+| `--filter-batch-size` | `10` | Pairs per Ollama call |
+| `--filter-concurrency` | `5` | Concurrent Ollama requests |
+| `--no-filter` | off | Skip Stage 1 (if Ollama is unavailable) |
+
+**Stage 2 — LLM extraction:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--llm-base-url` | `https://api.deepseek.com` | OpenAI-compatible API base URL |
+| `--llm-model` | `deepseek-chat` | Model for epistemic extraction |
+| `--llm-api-key` | `""` | API key (or set `OPENAI_API_KEY` / `DEEPSEEK_API_KEY`) |
+| `--batch-size` | `20` | Pairs per LLM call |
+| `--max-concurrent` | `20` | Concurrent Stage 2 API requests |
+| `--failure-log` | none | Path to write JSON log of failed extraction batches |
+
+---
+
+### `prism-stats` — Graph and store statistics
+
+```
+prism-stats GRAPH_PATH [--lancedb-path PATH] [--table-name NAME] [--json]
+```
+
+Prints node count, edge count, edge-type breakdown, and density. Add `--lancedb-path` to also report vector store chunk count and source breakdown.
+
+---
+
+### `prism-inspect` — Inspect a single node
+
+```
+prism-inspect GRAPH_PATH --node NODE_ID [--max-edges N] [--json]
+```
+
+Shows the node's metadata and all its incoming and outgoing edges with types and confidence scores. Useful for debugging why a chunk is or isn't appearing in retrieval.
+
+```bash
+prism-inspect prism_graph.json.gz --node "chunk_abc123" --max-edges 30
+```
+
+---
+
+### `prism-explore` — Interactive web explorer
+
+```
+prism-explore --lancedb-path PATH --graph-path PATH [options]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--table-name` | `knowledge` | LanceDB table name |
+| `--ollama-url` | `http://localhost:11434` | Ollama base URL |
+| `--embed-model` | `nomic-embed-text` | Embedding model |
+| `--embed-api-url` | none | OpenAI-compatible embedding API URL |
+| `--embed-api-key` | none | Embedding API key |
+| `--host` | `127.0.0.1` | Bind host |
+| `--port` | `7860` | Bind port |
+
+With an OpenAI-compatible embedding API instead of Ollama:
+
+```bash
+prism-explore \
+  --lancedb-path  /path/to/lancedb \
+  --graph-path    prism_graph.json.gz \
+  --embed-api-url https://api.openai.com/v1/embeddings \
+  --embed-api-key $OPENAI_API_KEY \
+  --embed-model   text-embedding-3-small
+```
+
+The explorer lets you:
+- Browse the force-directed epistemic graph (15k+ nodes)
+- Toggle edge types on/off, filter by source, set a confidence floor
+- Type a question and watch spreading activation colour nodes by result bucket
+- Click any node to see its connections in a side panel
+- Export the current layout as a standalone interactive HTML file
+
+---
+
+### `prism-viz` — Export for Gephi or D3
+
+```
+prism-viz GRAPH_PATH [--format gexf|d3] [--output PATH] [options]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format` | `d3` | `d3` (JSON for D3.js) or `gexf` (Gephi) |
+| `--output`, `-o` | auto | Output file; use `-` to write D3 JSON to stdout |
+| `--edge-types` | all | Comma-separated list: `supports,refutes,supersedes,…` |
+| `--min-confidence` | `0.0` | Drop edges below this threshold |
+| `--source-filter` | none | Only include nodes whose source contains this string |
+| `--max-nodes` | unlimited | Keep the top-N highest-degree nodes only |
+
+```bash
+# Export high-confidence supports/refutes edges for one document set
+prism-viz prism_graph.json.gz \
+  --format gexf \
+  --edge-types supports,refutes \
+  --min-confidence 0.8 \
+  --output review_graph.gexf
+
+# Pipe D3 JSON into another tool
+prism-viz prism_graph.json.gz --output - | jq '.nodes | length'
+```
+
+---
+
+### `prism-export` — Export to Neo4j
+
+```
+prism-export GRAPH_PATH [--format cypher|neo4j] [options]
+```
+
+**Write a Cypher script** (no Neo4j required):
+
+```bash
+prism-export prism_graph.json.gz --format cypher --output graph.cypher
+
+# Load it:
+cypher-shell -u neo4j -p secret < graph.cypher
+```
+
+**Push directly via Bolt:**
+
+```bash
+pip install prism-rag[neo4j]
+
+prism-export prism_graph.json.gz \
+  --format neo4j \
+  --uri      bolt://localhost:7687 \
+  --user     neo4j \
+  --password secret \
+  --clear           # wipe existing :Chunk nodes first
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--batch-size` | `500` | Nodes/edges per transaction |
+| `--database` | `neo4j` | Target Neo4j database name |
+| `--clear` | off | Delete all `:Chunk` nodes before import |
+
+---
+
+## Python API Quick Start
+
+### Build the graph
 
 ```python
 from prism import PRISM
 
-# Ollama embeddings (local)
 p = PRISM(
-    lancedb_path = "/path/to/your/lancedb",
-    graph_path   = "/path/to/prism_graph.json.gz",
+    lancedb_path = "/path/to/lancedb",
+    graph_path   = "prism_graph.json.gz",
     ollama_url   = "http://localhost:11434",
     embed_model  = "nomic-embed-text",
     llm_base_url = "https://api.openai.com",
@@ -83,34 +324,10 @@ p = PRISM(
     llm_api_key  = "sk-...",
 )
 
-# Or OpenAI-compatible API embeddings
-p = PRISM(
-    lancedb_path  = "/path/to/your/lancedb",
-    graph_path    = "/path/to/prism_graph.json.gz",
-    embed_api_url = "https://api.openai.com/v1/embeddings",
-    embed_api_key = "sk-...",
-    embed_model   = "text-embedding-3-small",
-    llm_base_url  = "https://api.openai.com",
-    llm_model     = "gpt-4o-mini",
-    llm_api_key   = "sk-...",
-)
-
 p.build(k_neighbors=8, cross_source_only=False)
 ```
 
-> **Tip:** Use `cross_source_only=False` (the recommended default). Setting it to `True` skips intra-document pairs and leaves most epistemic relationships unextracted — on a 30k-chunk corpus this can cut edge count by 3–5×, making the graph too sparse to add value over plain vector search.
-
-Or via the CLI:
-
-```bash
-prism-build \
-    --lancedb-path /path/to/lancedb \
-    --graph-path   /path/to/prism_graph.json.gz \
-    --llm-api-key  $OPENAI_API_KEY \
-    --all-sources
-```
-
-### 2. Retrieve
+### Retrieve
 
 ```python
 p.load_graph()
@@ -139,7 +356,7 @@ PRISM retrieval for: "your question here"
 ─ 1 primary · 1 supporting · 0 contrasting · 1 qualifying · 0 superseded ─
 ```
 
-### 3. Access results programmatically
+### Access results programmatically
 
 ```python
 for chunk in result.primary:
@@ -150,6 +367,23 @@ for chunk in result.contrasting:
 
 # Feed structured context directly into your LLM
 context = result.format_for_llm()
+```
+
+### Export the graph
+
+```python
+import networkx as nx
+
+# NetworkX — use any graph algorithm
+G = graph.to_networkx()          # returns nx.MultiDiGraph copy
+pr = nx.pagerank(G, weight="weight")
+communities = nx.community.greedy_modularity_communities(G.to_undirected())
+
+# Cypher script
+graph.to_cypher("graph.cypher")
+
+# Neo4j Bolt
+graph.to_neo4j("bolt://localhost:7687", user="neo4j", password="secret")
 ```
 
 ---
@@ -180,40 +414,22 @@ The graph is built once offline. PRISM uses a **two-stage pipeline** that makes 
 **Stage 1 — Ollama pre-filter (fast, free)**
 An Ollama model screens candidate pairs with a binary yes/no question. ~50% of pairs are discarded before any API call. Runs via Ollama, costs nothing.
 
-PRISM checks the model is available in Ollama before starting and prints a clear warning if not, rather than silently skipping filtering.
-
 **Stage 2 — Async LLM classification**
 Surviving pairs are classified with full type + confidence using 20 concurrent API requests, in batches of 20 pairs each.
 
-**Build time comparison — 30k-chunk corpus, ~50k candidate pairs:**
+**Build time — 30k-chunk corpus, ~50k candidate pairs:**
 
 | Pipeline | Wall Time |
 |----------|-----------|
 | v1 — sync, batch=5 | ~40 hours |
 | v2 — async only, batch=20 | ~30 minutes |
-| v2 — async + stage-1 filter (fast model) | **~15–20 minutes** |
+| v2 — async + stage-1 filter | **~15–20 minutes** |
 
 **Checkpoint / resume** — if interrupted, the build saves progress automatically and resumes from where it left off.
 
 **`cross_source_only=False` produces significantly richer graphs.** On a 30k-chunk governance corpus: `True` = 3,571 edges (graph rarely fires); `False` = 9,989 edges (supporting/qualifying buckets activate on most queries). Use `False` unless your sources are genuinely independent.
 
-**Choosing a Stage 1 filter model — use a model under ~5 GB.** Small, fast models (`llama3.1:8b`, `llama3.2:3b`, `gemma3:4b`) complete each binary call in under a second. Models above ~6 GB — especially over a network connection — can take 2–4 seconds per call and negate the benefit of filtering entirely. If no fast model is available — or if your GPU doesn't have VRAM headroom for true parallel inference — use `--no-filter` and rely on Stage 2 alone (~30 min).
-
-If your Ollama instance is remote, pass its address via `ollama_url`:
-
-```python
-PRISM(
-    ollama_url   = "http://your-ollama-host:11434",
-    embed_model  = "qwen3-embedding:4b",
-    filter_model = "llama3.1:8b",   # fast model on your Ollama server
-    ...
-)
-```
-
-Or via CLI:
-```bash
-prism-build --ollama-url http://your-ollama-host:11434 --filter-model llama3.1:8b ...
-```
+**Choosing a Stage 1 filter model — use a model under ~5 GB.** Small, fast models (`llama3.1:8b`, `llama3.2:3b`, `gemma3:4b`) complete each binary call in under a second. Models above ~6 GB can take 2–4 seconds per call and negate the benefit of filtering entirely. If no fast model is available, use `--no-filter` and rely on Stage 2 alone (~30 min).
 
 ---
 
@@ -225,9 +441,11 @@ PRISM works **on top of your existing vector store**. If you have an existing co
 - Epistemic graph → built from text via LLM, stored as a separate `.json.gz` file
 - Fallback → if no graph exists, PRISM automatically falls back to pure vector search
 
+---
+
 ## Vector Store Adapters
 
-PRISM ships adapters for LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector. All share the same interface and support Ollama or OpenAI-compatible embedding:
+PRISM ships adapters for LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector. All share the same interface:
 
 ```python
 from prism.adapters.chroma   import ChromaAdapter
@@ -235,26 +453,11 @@ from prism.adapters.qdrant   import QdrantAdapter
 from prism.adapters.weaviate import WeaviateAdapter
 from prism.adapters.pgvector import PgvectorAdapter
 
-# e.g. Qdrant
 adapter = QdrantAdapter(collection_name="knowledge", url="http://localhost:6333")
 p = PRISM(graph_path="prism_graph.json.gz", adapter=adapter, ...)
 ```
 
-To connect a different store, implement the `VectorAdapter` Protocol — copy `prism/adapters/template.py` for a fully-commented skeleton. The built-in `Embedder` class handles Ollama and OpenAI-compatible embedding so you don't have to re-implement it.
-
-## Graph Visualisation
-
-```bash
-# D3 JSON for force-directed visualisation
-prism-viz prism_graph.json.gz --output graph.json
-
-# Gephi GEXF — open in Gephi for layout and clustering
-prism-viz prism_graph.json.gz --format gexf --output graph.gexf
-
-# Filter to specific edge types or sources
-prism-viz prism_graph.json.gz --edge-types supports,refutes --min-confidence 0.8
-prism-viz prism_graph.json.gz --source-filter "dmbok" --max-nodes 500
-```
+To connect a different store, implement the `VectorAdapter` Protocol — copy `prism/adapters/template.py` for a fully-commented skeleton.
 
 ---
 
@@ -279,64 +482,48 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 
 ---
 
-## What's new in 0.2.7
+## Changelog
 
-NetworkX and Neo4j export:
+### 0.2.7 — NetworkX and Neo4j export
 
 ```python
-# NetworkX — use any graph algorithm directly
-G = graph.to_networkx()          # returns nx.MultiDiGraph copy
-import networkx as nx
-pr = nx.pagerank(G, weight="weight")
-communities = nx.community.greedy_modularity_communities(G.to_undirected())
-
-# Neo4j — write a Cypher script
-graph.to_cypher("graph.cypher")
-# cypher-shell -u neo4j -p secret < graph.cypher
-
-# Neo4j — push directly via Bolt
+G = graph.to_networkx()          # nx.MultiDiGraph copy — use any nx algorithm
+graph.to_cypher("graph.cypher")  # write Cypher script
 graph.to_neo4j("bolt://localhost:7687", user="neo4j", password="secret")
 ```
 
-Or via CLI:
+CLI:
 
 ```bash
 prism-export graph.json.gz --format cypher --output graph.cypher
-prism-export graph.json.gz --format neo4j --uri bolt://localhost:7687 --user neo4j --password secret
+prism-export graph.json.gz --format neo4j --uri bolt://localhost:7687 \
+  --user neo4j --password secret
 ```
 
 Install: `pip install prism-rag[neo4j]` for direct Bolt push.
 
-## What's new in 0.2.6
-
-Adds the **local knowledge explorer** — an interactive force-directed graph UI for your knowledge base:
+### 0.2.6 — Local interactive graph explorer
 
 ```bash
 pip install prism-rag[lancedb,explorer]
 
 prism-explore \
   --lancedb-path /path/to/lancedb \
-  --graph-path   /path/to/prism_graph.json.gz \
+  --graph-path   prism_graph.json.gz \
   --embed-model  nomic-embed-text
 ```
 
-Open `http://localhost:7860` to get:
+Open `http://localhost:7860` — force-directed graph, edge-type toggles, confidence slider, semantic query mode, Export HTML.
 
-- **Force-directed epistemic graph** — 15k+ nodes, edges colored by type, sized by degree
-- **Edge type toggles** — show/hide supports, refutes, supersedes, specializes, etc.
-- **Source filter + confidence slider** — focus on specific documents or high-confidence edges
-- **Query mode** — type a question, watch activation spread; nodes glow by bucket (primary/supporting/contrasting/qualifying/superseded)
-- **Export HTML** — save the current layout as a standalone interactive file (no server required)
+### 0.2.5 — Adapter bug fixes
 
-## What's new in 0.2.5
+- **LanceDB:** `get_chunks` no longer silently drops node IDs past the first 100.
+- **ChromaDB:** dropped the invalid `$contains` `where` filter; `source_filter` now applies client-side.
+- **Weaviate:** vectors cached in initial scan — no more N+1 round-trips in `candidate_pairs_for`.
+- **pgvector:** separate cursors for fetch and neighbour queries (avoids psycopg2 buffer-invalidation).
+- Tests added for all five adapters and `prism-viz`. CI now runs a matrix over all extras with a 50% coverage floor.
 
-Bug-fix and test-coverage release for the adapters shipped in 0.2.4:
-
-- **LanceDB:** `get_chunks` no longer silently drops node IDs past the first 100 — queries are batched instead.
-- **ChromaDB:** dropped the invalid `$contains` `where` filter; `source_filter` now applies client-side without triggering a fallback.
-- **Weaviate:** `candidate_pairs_for` no longer issues one round-trip per chunk ID — vectors are cached in the initial scan.
-- **pgvector:** `candidate_pairs_for` uses separate cursors for the fetch and neighbour queries (avoids psycopg2 buffer-invalidation).
-- **Tests:** new unit suites for Chroma, Qdrant, Weaviate, pgvector, and `prism-viz`. CI now runs a matrix across all five adapter extras plus a coverage job (`pytest-cov`, 50 % floor).
+---
 
 ## License
 
