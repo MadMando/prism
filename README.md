@@ -15,6 +15,11 @@
 
 ---
 
+[![Interactive graph demo](examples/prism_sample.png)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/MadMando/prism/main/examples/prism-graph-2026-04-21.html)
+<div align="center"><sub>↑ Click to open the interactive epistemic graph demo (1,000 nodes, 1,326 edges — sample from a 15,543-node corpus)</sub></div>
+
+---
+
 PRISM is a retrieval library that layers a **typed epistemic knowledge graph** over your existing vector store, then uses **spreading activation** to surface knowledge structured by *how it relates* — not just *how similar it is*.
 
 ---
