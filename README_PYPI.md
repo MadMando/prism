@@ -279,6 +279,34 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 
 ---
 
+## What's new in 0.2.7
+
+NetworkX and Neo4j export:
+
+```python
+# NetworkX — use any graph algorithm directly
+G = graph.to_networkx()          # returns nx.MultiDiGraph copy
+import networkx as nx
+pr = nx.pagerank(G, weight="weight")
+communities = nx.community.greedy_modularity_communities(G.to_undirected())
+
+# Neo4j — write a Cypher script
+graph.to_cypher("graph.cypher")
+# cypher-shell -u neo4j -p secret < graph.cypher
+
+# Neo4j — push directly via Bolt
+graph.to_neo4j("bolt://localhost:7687", user="neo4j", password="secret")
+```
+
+Or via CLI:
+
+```bash
+prism-export graph.json.gz --format cypher --output graph.cypher
+prism-export graph.json.gz --format neo4j --uri bolt://localhost:7687 --user neo4j --password secret
+```
+
+Install: `pip install prism-rag[neo4j]` for direct Bolt push.
+
 ## What's new in 0.2.6
 
 Adds the **local knowledge explorer** — an interactive force-directed graph UI for your knowledge base:

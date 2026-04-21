@@ -712,12 +712,20 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 - [x] Additional vector store adapters (Chroma, Qdrant, Weaviate, pgvector)
 - [x] Graph visualisation (`prism-viz` CLI — exports to Gephi GEXF / D3 JSON)
 - [x] Adapter bug fixes + unit test coverage + CI matrix across all extras (0.2.5)
-- [ ] Export to Neo4j / NetworkX formats
+- [x] Export to Neo4j / NetworkX formats (`prism-export` CLI + Python API)
 - [ ] Retrieval quality benchmarks on standard QA datasets
 
 ---
 
 ## Changelog
+
+### 0.2.7 — NetworkX and Neo4j export
+
+- **`EpistemicGraph.to_networkx()`** — returns a `nx.MultiDiGraph` copy; run PageRank, community detection, shortest paths, or any NetworkX algorithm directly
+- **`EpistemicGraph.to_cypher(path)`** — writes batched Cypher `CREATE` statements; load into Neo4j with `cypher-shell` or Browser
+- **`EpistemicGraph.to_neo4j(uri, user, password)`** — pushes nodes and typed relationships directly into a running Neo4j instance via Bolt
+- **`prism-export` CLI** — `--format cypher` or `--format neo4j` from the command line
+- Install Bolt driver: `pip install prism-rag[neo4j]`
 
 ### 0.2.6 — Local knowledge explorer (`prism-explore`)
 

@@ -1272,6 +1272,18 @@ wheels = [
 ]
 
 [[package]]
+name = "neo4j"
+version = "6.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1b/01/d6ce65e4647f6cb2b9cca3b813978f7329b54b4e36660aaec1ddf0ccce7a/neo4j-6.1.0.tar.gz", hash = "sha256:b5dde8c0d8481e7b6ae3733569d990dd3e5befdc5d452f531ad1884ed3500b84", size = 239629, upload-time = "2026-01-12T11:27:34.777Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/5c/ee71e2dd955045425ef44283f40ba1da67673cf06404916ca2950ac0cd39/neo4j-6.1.0-py3-none-any.whl", hash = "sha256:3bd93941f3a3559af197031157220af9fd71f4f93a311db687bd69ffa417b67d", size = 325326, upload-time = "2026-01-12T11:27:33.196Z" },
+]
+
+[[package]]
 name = "networkx"
 version = "3.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1615,7 +1627,7 @@ wheels = [
 
 [[package]]
 name = "prism-rag"
-version = "0.2.5"
+version = "0.2.7"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -1648,6 +1660,9 @@ lancedb = [
     { name = "numpy" },
     { name = "pyarrow" },
 ]
+neo4j = [
+    { name = "neo4j" },
+]
 pgvector = [
     { name = "psycopg2-binary" },
 ]
@@ -1666,6 +1681,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.10" },
     { name = "mypy", marker = "extra == 'dev'" },
+    { name = "neo4j", marker = "extra == 'neo4j'", specifier = ">=5.0" },
     { name = "networkx", specifier = ">=3.0" },
     { name = "numpy", marker = "extra == 'lancedb'", specifier = ">=1.24" },
     { name = "psycopg2-binary", marker = "extra == 'pgvector'", specifier = ">=2.9" },
@@ -1683,7 +1699,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'explorer'", specifier = ">=0.29" },
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.0" },
 ]
-provides-extras = ["lancedb", "chroma", "qdrant", "weaviate", "pgvector", "explorer", "dev"]
+provides-extras = ["lancedb", "chroma", "qdrant", "weaviate", "pgvector", "explorer", "neo4j", "dev"]
 
 [[package]]
 name = "protobuf"
@@ -2213,6 +2229,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/52/a0/07907b6ff512674d9b201859f7d212298c44933633c946703a20c25e9d81/pytokens-0.4.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:967cf6e3fd4adf7de8fc73cd3043754ae79c36475c1c11d514fc72cf5490094a", size = 306698, upload-time = "2026-01-30T01:03:29.653Z" },
     { url = "https://files.pythonhosted.org/packages/39/2a/cbbf9250020a4a8dd53ba83a46c097b69e5eb49dd14e708f496f548c6612/pytokens-0.4.1-cp314-cp314t-win_amd64.whl", hash = "sha256:584c80c24b078eec1e227079d56dc22ff755e0ba8654d8383b2c549107528918", size = 116287, upload-time = "2026-01-30T01:03:30.912Z" },
     { url = "https://files.pythonhosted.org/packages/c6/78/397db326746f0a342855b81216ae1f0a32965deccfd7c830a2dbc66d2483/pytokens-0.4.1-py3-none-any.whl", hash = "sha256:26cef14744a8385f35d0e095dc8b3a7583f6c953c2e3d269c7f82484bf5ad2de", size = 13729, upload-time = "2026-01-30T01:03:45.029Z" },
+]
+
+[[package]]
+name = "pytz"
+version = "2026.1.post1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/db/b8721d71d945e6a8ac63c0fc900b2067181dbb50805958d4d4661cf7d277/pytz-2026.1.post1.tar.gz", hash = "sha256:3378dde6a0c3d26719182142c56e60c7f9af7e968076f31aae569d72a0358ee1", size = 321088, upload-time = "2026-03-03T07:47:50.683Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/99/781fe0c827be2742bcc775efefccb3b048a3a9c6ce9aec0cbf4a101677e5/pytz-2026.1.post1-py2.py3-none-any.whl", hash = "sha256:f2fd16142fda348286a75e1a524be810bb05d444e5a081f37f7affc635035f7a", size = 510489, upload-time = "2026-03-03T07:47:49.167Z" },
 ]
 
 [[package]]

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prism-rag"
-version = "0.2.6"
+version = "0.2.7"
 description = "Epistemic Graph RAG with Spreading Activation — retrieval that understands how knowledge relates, not just what it says"
 readme = "README_PYPI.md"
 requires-python = ">=3.11"
@@ -56,6 +56,9 @@ explorer = [
     "fastapi>=0.111",
     "uvicorn>=0.29",
 ]
+neo4j = [
+    "neo4j>=5.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio",
@@ -76,6 +79,7 @@ prism-stats   = "prism.inspect_cli:stats_main"
 prism-inspect = "prism.inspect_cli:inspect_main"
 prism-viz     = "prism.viz_cli:viz_main"
 prism-explore = "prism.explorer.server:main"
+prism-export  = "prism.export_cli:export_main"
 
 [tool.setuptools.packages.find]
 where   = ["."]
