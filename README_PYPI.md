@@ -6,6 +6,9 @@
 [![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](https://github.com/MadMando/prism/blob/main/LICENSE)
 [![GitHub](https://img.shields.io/badge/github-MadMando%2Fprism-black?style=flat-square&logo=github)](https://github.com/MadMando/prism)
+[![AI Attribution](https://img.shields.io/badge/AI%20attribution-disclosed-blueviolet?style=flat-square)](https://aiattribution.github.io/)
+
+> **AI Attribution** — This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of [Claude](https://anthropic.com/claude) (Anthropic). Architecture decisions, domain framing, and all editorial judgement remain the author's own. Attribution disclosed using the [AI Attribution Toolkit](https://aiattribution.github.io/).
 
 PRISM layers a **typed epistemic knowledge graph** over your existing vector store, then uses **spreading activation** to surface knowledge structured by *how it relates* — not just *how similar it is*.
 

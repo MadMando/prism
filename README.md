@@ -10,8 +10,11 @@
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/prism-rag?style=flat-square&color=blue)](https://pypi.org/project/prism-rag/)
 [![Python](https://img.shields.io/badge/python-3.11+-blue?style=flat-square)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![AI Attribution](https://img.shields.io/badge/AI%20attribution-disclosed-blueviolet?style=flat-square)](https://aiattribution.github.io/)
 
 </div>
+
+> **AI Attribution** — This project was designed and directed by a human author. Code, documentation, and the research paper were substantially drafted with the assistance of [Claude](https://anthropic.com/claude) (Anthropic). Architecture decisions, domain framing, and all editorial judgement remain the author's own. Attribution disclosed using the [AI Attribution Toolkit](https://aiattribution.github.io/).
 
 ---
 
