@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PRISM Explorer</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #111118;
+      --border:    #1e1e2e;
+      --text:      #d4d4d8;
+      --muted:     #52525b;
+      --accent:    #a78bfa;
+      --accent-hi: #c4b5fd;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 220px 1fr 300px;
+      grid-template-rows: 44px 1fr;
+      overflow: hidden;
+    }
+
+    /* ── Header ───────────────────────────────────── */
+    header {
+      grid-column: 1 / -1;
+      background: #0d0d1a;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+    }
+    header h1 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+    }
+    #header-stats {
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    /* ── Left panel ───────────────────────────────── */
+    #panel-left {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* ── Center graph ─────────────────────────────── */
+    #graph-wrap {
+      position: relative;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    #graph { width: 100%; height: 100%; display: block; }
+
+    /* ── Right panel ──────────────────────────────── */
+    #panel-right {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Shared ───────────────────────────────────── */
+    .section-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* ── Filter controls ──────────────────────────── */
+    .filter-block { display: flex; flex-direction: column; gap: 6px; }
+
+    input[type=text], input[type=number], textarea {
+      background: #0d0d1a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    input[type=text], input[type=number] { padding: 5px 8px; width: 100%; }
+    input[type=text]:focus, input[type=number]:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .slider-row { display: flex; align-items: center; gap: 8px; }
+    .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+    .slider-val { font-size: 11px; color: var(--muted); width: 30px; text-align: right; }
+
+    /* Edge type list */
+    #edge-list { display: flex; flex-direction: column; gap: 3px; }
+    .edge-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 2px 0;
+      user-select: none;
+    }
+    .edge-row input[type=checkbox] { accent-color: var(--accent); margin: 0; flex-shrink: 0; }
+    .e-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+    /* ── Query area ───────────────────────────────── */
+    #query-area {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    textarea#query-input {
+      width: 100%;
+      min-height: 64px;
+      padding: 7px 9px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    .q-controls { display: flex; align-items: center; gap: 6px; }
+    .q-controls label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    #top-k { width: 48px; }
+
+    button {
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 6px 12px;
+    }
+    #search-btn { background: var(--accent); color: #0a0a0f; }
+    #search-btn:hover { background: var(--accent-hi); }
+    #search-btn:disabled { background: #2a2a3a; color: var(--muted); cursor: not-allowed; }
+    #clear-btn {
+      background: transparent;
+      border: 1px solid #2a2a3a;
+      color: var(--muted);
+    }
+    #clear-btn:hover { border-color: var(--muted); color: var(--text); }
+
+    /* ── Results / detail pane ────────────────────── */
+    #detail-pane {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .bucket-block { display: flex; flex-direction: column; gap: 5px; }
+    .bucket-hdr {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding-bottom: 5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .b-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    .chunk-card {
+      background: #0d0d1a;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 9px;
+      cursor: pointer;
+      transition: border-color 0.12s;
+    }
+    .chunk-card:hover { border-color: #3a3a5a; }
+    .chunk-card.selected { border-color: var(--accent); }
+    .chunk-meta {
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 3px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .chunk-score { color: var(--accent); }
+    .chunk-text { font-size: 11px; color: #a1a1aa; line-height: 1.55; }
+
+    /* Node detail */
+    .nd-meta { font-size: 11px; color: #71717a; line-height: 1.7; margin-bottom: 8px; }
+    .nd-preview { font-size: 12px; color: #d4d4d8; line-height: 1.6; }
+    .nd-edges-hdr { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
+    .nd-edge {
+      font-size: 11px;
+      padding: 4px 0;
+      border-bottom: 1px solid #1a1a2a;
+      color: #71717a;
+      display: flex;
+      justify-content: space-between;
+    }
+    .nd-edge-type { font-weight: 600; }
+    .nd-conf { color: var(--muted); font-size: 10px; }
+
+    /* Empty state */
+    .empty-state {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      margin-top: 48px;
+      line-height: 1.8;
+    }
+
+    /* Tooltip */
+    #tooltip {
+      position: fixed;
+      background: rgba(13,13,26,0.97);
+      border: 1px solid #2a2a4a;
+      border-radius: 5px;
+      padding: 8px 11px;
+      font-size: 11px;
+      pointer-events: none;
+      z-index: 999;
+      max-width: 260px;
+      display: none;
+      line-height: 1.5;
+    }
+    .tt-src { color: var(--accent); font-weight: 600; margin-bottom: 3px; }
+    .tt-txt { color: #a1a1aa; }
+
+    /* Loading overlay */
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>◈ PRISM EXPLORER</h1>
+  <span id="header-stats">Loading…</span>
+  <button id="export-btn" style="display:none;margin-left:12px;background:transparent;border:1px solid #2a2a4a;color:#a78bfa;font-size:11px;padding:4px 10px;border-radius:4px;cursor:pointer;font-family:inherit;" onclick="exportHTML()">&#8595; Export HTML</button>
+</header>
+
+<!-- Left: filters -->
+<div id="panel-left">
+  <div class="filter-block">
+    <div class="section-label">Source Filter</div>
+    <input type="text" id="source-filter" placeholder="substring match…">
+  </div>
+
+  <div class="filter-block">
+    <div class="section-label">Min Confidence</div>
+    <div class="slider-row">
+      <input type="range" id="conf-slider" min="0" max="1" step="0.05" value="0">
+      <span class="slider-val" id="conf-val">0.00</span>
+    </div>
+  </div>
+
+  <div class="filter-block">
+    <div class="section-label">Edge Types</div>
+    <div id="edge-list"></div>
+  </div>
+</div>
+
+<!-- Center: graph -->
+<div id="graph-wrap">
+  <div id="loading">Loading epistemic graph…</div>
+  <svg id="graph"></svg>
+</div>
+
+<!-- Right: query + results -->
+<div id="panel-right">
+  <div id="query-area">
+    <div class="section-label">Query  <span style="font-weight:400;text-transform:none;letter-spacing:0">(Ctrl+Enter)</span></div>
+    <textarea id="query-input" placeholder="Ask something about your knowledge base…"></textarea>
+    <div class="q-controls">
+      <label>top_k</label>
+      <input type="number" id="top-k" value="5" min="1" max="50">
+      <button id="search-btn">Search</button>
+      <button id="clear-btn" style="display:none">Clear</button>
+    </div>
+  </div>
+  <div id="detail-pane">
+    <div class="empty-state">Submit a query to see<br>activated nodes &amp; results</div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const EDGE_COLORS = {
+  supports:       '#4CAF50',
+  refutes:        '#F44336',
+  supersedes:     '#FF9800',
+  derives_from:   '#9C27B0',
+  specializes:    '#2196F3',
+  contrasts_with: '#E91E63',
+  implements:     '#00BCD4',
+  generalizes:    '#8D6E63',
+  exemplifies:    '#FDD835',
+  qualifies:      '#607D8B',
+};
+
+const BUCKET_COLORS = {
+  primary:     '#F5A623',
+  supporting:  '#7ED321',
+  contrasting: '#D0021B',
+  qualifying:  '#4A90E2',
+  superseded:  '#9B9B9B',
+};
+
+const BUCKET_LABELS = {
+  primary:     'Primary',
+  supporting:  'Supporting',
+  contrasting: 'Contrasting',
+  qualifying:  'Qualifying',
+  superseded:  'Superseded',
+};
+
+const srcColor = d3.scaleOrdinal(d3.schemeTableau10);
+
+// ── State ────────────────────────────────────────────────────────────────────
+let graphData   = null;
+let simulation  = null;
+let svgEl, gEl, zoomBehavior;
+let nodesSel, linksSel;
+let activeEdgeTypes = new Set(Object.keys(EDGE_COLORS));
+let queryResult = null;
+let selectedNodeId = null;
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+async function init() {
+  buildEdgeToggles();
+  wireFilters();
+  wireQuery();
+
+  let data;
+  try {
+    const r = await fetch('/api/graph');
+    if (!r.ok) throw new Error(r.statusText);
+    data = await r.json();
+  } catch (e) {
+    document.getElementById('loading').textContent = '⚠ Could not load graph: ' + e.message;
+    return;
+  }
+
+  graphData = data;
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('header-stats').textContent =
+    `${data.nodes.length.toLocaleString()} nodes · ${data.links.length.toLocaleString()} edges`;
+  document.getElementById('export-btn').style.display = '';
+
+  renderGraph(data);
+}
+
+// ── Edge type checkboxes ──────────────────────────────────────────────────────
+function buildEdgeToggles() {
+  const list = document.getElementById('edge-list');
+  for (const [type, color] of Object.entries(EDGE_COLORS)) {
+    const row = document.createElement('label');
+    row.className = 'edge-row';
+    row.innerHTML = `
+      <input type="checkbox" checked data-etype="${type}">
+      <span class="e-swatch" style="background:${color}"></span>
+      <span>${type.replace(/_/g, ' ')}</span>`;
+    list.appendChild(row);
+  }
+  list.addEventListener('change', () => {
+    activeEdgeTypes = new Set(
+      [...list.querySelectorAll('input:checked')].map(el => el.dataset.etype)
+    );
+    applyVisibility();
+  });
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function wireFilters() {
+  const slider = document.getElementById('conf-slider');
+  slider.addEventListener('input', () => {
+    document.getElementById('conf-val').textContent = parseFloat(slider.value).toFixed(2);
+    applyVisibility();
+  });
+  document.getElementById('source-filter').addEventListener('input', applyVisibility);
+}
+
+function applyVisibility() {
+  if (!nodesSel) return;
+  const minConf   = parseFloat(document.getElementById('conf-slider').value);
+  const srcFilter = document.getElementById('source-filter').value.toLowerCase();
+
+  const visNodes = new Set();
+  nodesSel.each(d => {
+    if (!srcFilter || d.source.toLowerCase().includes(srcFilter)) visNodes.add(d.id);
+  });
+
+  nodesSel.style('opacity', d => visNodes.has(d.id) ? null : 0.04);
+
+  linksSel.style('display', d => {
+    const s = nodeId(d.source), t = nodeId(d.target);
+    return (activeEdgeTypes.has(d.type) && d.confidence >= minConf
+            && visNodes.has(s) && visNodes.has(t)) ? null : 'none';
+  });
+}
+
+const nodeId = n => (typeof n === 'object' ? n.id : n);
+
+// ── Graph render ──────────────────────────────────────────────────────────────
+function renderGraph(raw) {
+  const wrap = document.getElementById('graph-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+
+  svgEl = d3.select('#graph').attr('width', W).attr('height', H);
+
+  // Arrow markers per edge type
+  const defs = svgEl.append('defs');
+  for (const [type, color] of Object.entries(EDGE_COLORS)) {
+    defs.append('marker')
+      .attr('id', `arr-${type}`)
+      .attr('viewBox', '0 -4 10 8')
+      .attr('refX', 22).attr('refY', 0)
+      .attr('markerWidth', 7).attr('markerHeight', 7)
+      .attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-4L10,0L0,4').attr('fill', color);
+  }
+
+  gEl = svgEl.append('g');
+
+  // Deep-copy so simulation can mutate
+  const nodes = raw.nodes.map(d => ({ ...d }));
+  const links = raw.links.map(d => ({ ...d }));
+
+  const r = d => Math.max(6, 6 + Math.sqrt(d.degree || 0) * 2.8);
+
+  linksSel = gEl.append('g').selectAll('line')
+    .data(links).join('line')
+    .attr('stroke', d => EDGE_COLORS[d.type] || '#555')
+    .attr('stroke-width', d => Math.max(1.2, d.weight * 3))
+    .attr('stroke-opacity', d => 0.45 + d.weight * 0.45)
+    .attr('marker-end', d => `url(#arr-${d.type})`);
+
+  nodesSel = gEl.append('g').selectAll('circle')
+    .data(nodes).join('circle')
+    .attr('r', r)
+    .attr('fill', d => srcColor(d.group))
+    .attr('stroke', '#0a0a0f')
+    .attr('stroke-width', 1.5)
+    .attr('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }))
+    .on('click', onNodeClick)
+    .on('mouseover', onMouseOver)
+    .on('mousemove', onMouseMove)
+    .on('mouseout',  onMouseOut);
+
+  simulation = d3.forceSimulation(nodes)
+    .force('link',    d3.forceLink(links).id(d => d.id).distance(100).strength(0.35))
+    .force('charge',  d3.forceManyBody().strength(-220))
+    .force('center',  d3.forceCenter(W / 2, H / 2))
+    .force('collide', d3.forceCollide(d => r(d) + 5))
+    .on('tick', () => {
+      linksSel
+        .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+      nodesSel
+        .attr('cx', d => d.x).attr('cy', d => d.y);
+    });
+
+  zoomBehavior = d3.zoom()
+    .scaleExtent([0.03, 10])
+    .on('zoom', e => gEl.attr('transform', e.transform));
+  svgEl.call(zoomBehavior);
+
+  // Click on background → deselect
+  svgEl.on('click', () => {
+    selectedNodeId = null;
+    nodesSel.attr('stroke', '#0a0a0f').attr('stroke-width', 1.5);
+    if (!queryResult) showEmptyState();
+  });
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+const tip = document.getElementById('tooltip');
+function onMouseOver(e, d) {
+  tip.innerHTML = `<div class="tt-src">${d.source}  p.${d.page || '?'}${d.section ? ' · ' + d.section : ''}</div>`
+                + `<div class="tt-txt">${d.preview || '(no preview)'}</div>`;
+  tip.style.display = 'block';
+  onMouseMove(e);
+}
+function onMouseMove(e) {
+  tip.style.left = (e.clientX + 15) + 'px';
+  tip.style.top  = (e.clientY - 8)  + 'px';
+}
+function onMouseOut() { tip.style.display = 'none'; }
+
+// ── Node click ────────────────────────────────────────────────────────────────
+function onNodeClick(e, d) {
+  e.stopPropagation();
+  selectedNodeId = d.id;
+  nodesSel
+    .attr('stroke', n => n.id === d.id ? '#fff' : '#0a0a0f')
+    .attr('stroke-width', n => n.id === d.id ? 2.5 : 1.5);
+  renderNodeDetail(d);
+}
+
+function renderNodeDetail(d) {
+  const links = (graphData?.links || []).filter(l => {
+    const s = nodeId(l.source), t = nodeId(l.target);
+    return s === d.id || t === d.id;
+  });
+  const pane = document.getElementById('detail-pane');
+  pane.innerHTML = `
+    <div>
+      <div class="section-label">Node</div>
+      <div class="nd-meta">
+        <strong style="color:#d4d4d8">${d.source}</strong><br>
+        Page ${d.page || '?'}${d.section ? ' &middot; ' + escHtml(d.section) : ''}<br>
+        <span style="color:#3f3f5a">degree ${d.degree}</span>
+      </div>
+      <div class="nd-preview">${escHtml(d.preview || '(no preview)')}</div>
+    </div>
+    ${links.length ? `
+    <div>
+      <div class="nd-edges-hdr">Edges (${links.length})</div>
+      ${links.slice(0, 20).map(l => {
+        const s = nodeId(l.source);
+        const dir = s === d.id ? '→' : '←';
+        const other = s === d.id ? nodeId(l.target) : s;
+        return `<div class="nd-edge">
+          <span>
+            <span class="nd-edge-type" style="color:${EDGE_COLORS[l.type]||'#aaa'}">${l.type}</span>
+            ${dir} <span style="color:#52525b">${other.slice(0,28)}…</span>
+          </span>
+          <span class="nd-conf">${Math.round(l.confidence * 100)}%</span>
+        </div>`;
+      }).join('')}
+      ${links.length > 20 ? `<div style="color:#3f3f5a;font-size:10px;margin-top:5px">+${links.length - 20} more</div>` : ''}
+    </div>` : ''}`;
+}
+
+// ── Query ─────────────────────────────────────────────────────────────────────
+function wireQuery() {
+  document.getElementById('search-btn').addEventListener('click', runQuery);
+  document.getElementById('clear-btn').addEventListener('click', clearQuery);
+  document.getElementById('query-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) runQuery();
+  });
+}
+
+async function runQuery() {
+  const query = document.getElementById('query-input').value.trim();
+  if (!query) return;
+  const topK = parseInt(document.getElementById('top-k').value, 10) || 5;
+
+  const btn = document.getElementById('search-btn');
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  let result;
+  try {
+    const r = await fetch('/api/retrieve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, top_k: topK }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    result = await r.json();
+  } catch (e) {
+    alert('Retrieve failed: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Search';
+    return;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Search';
+  document.getElementById('clear-btn').style.display = '';
+
+  queryResult = result;
+  highlightQuery(result);
+  renderQueryResults(result);
+}
+
+function highlightQuery(result) {
+  const nodeBucket = {};
+  for (const [bucket, chunks] of Object.entries(result)) {
+    if (!Array.isArray(chunks)) continue;
+    for (const c of chunks) nodeBucket[c.id] = bucket;
+  }
+
+  nodesSel
+    .attr('fill', d => nodeBucket[d.id] ? BUCKET_COLORS[nodeBucket[d.id]] : srcColor(d.group))
+    .attr('stroke', d => nodeBucket[d.id] ? '#fff' : '#0a0a0f')
+    .attr('stroke-width', d => nodeBucket[d.id] ? 2.5 : 1)
+    .style('opacity', d => nodeBucket[d.id] ? 1 : 0.1);
+
+  linksSel.style('opacity', d => {
+    const s = nodeId(d.source), t = nodeId(d.target);
+    return (nodeBucket[s] || nodeBucket[t]) ? 0.65 : 0.03;
+  }).style('display', null);
+}
+
+function renderQueryResults(result) {
+  const buckets = ['primary', 'supporting', 'contrasting', 'qualifying', 'superseded'];
+  const blocks = buckets
+    .filter(b => result[b]?.length)
+    .map(b => {
+      const chunks = result[b];
+      return `<div class="bucket-block">
+        <div class="bucket-hdr">
+          <span class="b-dot" style="background:${BUCKET_COLORS[b]}"></span>
+          ${BUCKET_LABELS[b]} &nbsp;<span style="color:#3f3f5a">${chunks.length}</span>
+        </div>
+        ${chunks.map(c => `
+          <div class="chunk-card" data-id="${c.id}" onclick="focusChunk('${c.id}', this)">
+            <div class="chunk-meta">
+              <span>${escHtml(c.source)} &middot; p.${c.page || '?'}</span>
+              <span class="chunk-score">${c.scores.final.toFixed(3)}</span>
+            </div>
+            <div class="chunk-text">${escHtml((c.section ? c.section + ': ' : '') + (c.text || '').slice(0, 150))}…</div>
+          </div>`).join('')}
+      </div>`;
+    }).join('');
+
+  document.getElementById('detail-pane').innerHTML =
+    blocks || '<div class="empty-state">No results returned.</div>';
+}
+
+function focusChunk(nodeId_, cardEl) {
+  document.querySelectorAll('.chunk-card').forEach(el => el.classList.remove('selected'));
+  cardEl.classList.add('selected');
+
+  if (!nodesSel || !svgEl) return;
+  let target = null;
+  nodesSel.each(function(d) { if (d.id === nodeId_) target = d; });
+  if (!target) return;
+
+  const wrap = document.getElementById('graph-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const t = d3.zoomTransform(svgEl.node());
+
+  svgEl.transition().duration(550).call(
+    zoomBehavior.transform,
+    d3.zoomIdentity
+      .translate(W / 2, H / 2)
+      .scale(Math.max(t.k, 1.5))
+      .translate(-target.x, -target.y)
+  );
+
+  nodesSel.attr('stroke-width', d => d.id === nodeId_ ? 3 : (queryResult ? 1 : 1.5));
+}
+
+function clearQuery() {
+  queryResult = null;
+  document.getElementById('clear-btn').style.display = 'none';
+  nodesSel
+    .attr('fill', d => srcColor(d.group))
+    .attr('stroke', '#0a0a0f')
+    .attr('stroke-width', 1.5)
+    .style('opacity', null);
+  linksSel.style('opacity', null);
+  applyVisibility();
+  showEmptyState();
+}
+
+function showEmptyState() {
+  document.getElementById('detail-pane').innerHTML =
+    '<div class="empty-state">Submit a query to see<br>activated nodes &amp; results</div>';
+}
+
+// ── Util ──────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Export standalone HTML ────────────────────────────────────────────────────
+function exportHTML() {
+  if (!graphData || !nodesSel) return;
+
+  // Capture current simulation positions into the node objects
+  const posMap = {};
+  nodesSel.each(d => { posMap[d.id] = { x: d.x, y: d.y }; });
+
+  const frozenNodes = graphData.nodes.map(n => ({
+    ...n,
+    x: posMap[n.id]?.x ?? 0,
+    y: posMap[n.id]?.y ?? 0,
+  }));
+
+  const payload = JSON.stringify({ nodes: frozenNodes, links: graphData.links });
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PRISM Graph — ${new Date().toLocaleDateString()}</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"><\/script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a0f;--surface:#111118;--border:#1e1e2e;--text:#d4d4d8;--muted:#52525b;--accent:#a78bfa}
+body{font-family:'SF Mono','Fira Code',monospace;background:var(--bg);color:var(--text);height:100vh;display:grid;grid-template-columns:200px 1fr;grid-template-rows:44px 1fr;overflow:hidden}
+header{grid-column:1/-1;background:#0d0d1a;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px}
+header h1{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.12em}
+#stats{font-size:11px;color:var(--muted);margin-left:auto}
+#panel{background:var(--surface);border-right:1px solid var(--border);padding:14px 12px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}
+#graph-wrap{position:relative;overflow:hidden;background:var(--bg)}
+#graph{width:100%;height:100%;display:block}
+.sl{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+input[type=text]{background:#0d0d1a;border:1px solid var(--border);color:var(--text);border-radius:4px;font-family:inherit;font-size:12px;padding:5px 8px;width:100%}
+input[type=text]:focus{outline:none;border-color:var(--accent)}
+.sr{display:flex;align-items:center;gap:8px}.sr input[type=range]{flex:1;accent-color:var(--accent)}
+.sv{font-size:11px;color:var(--muted);width:30px;text-align:right}
+#elist{display:flex;flex-direction:column;gap:3px}
+.er{display:flex;align-items:center;gap:7px;font-size:11px;cursor:pointer;padding:2px 0;user-select:none}
+.er input{accent-color:var(--accent);margin:0;flex-shrink:0}
+.es{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+#tip{position:fixed;background:rgba(13,13,26,.97);border:1px solid #2a2a4a;border-radius:5px;padding:8px 11px;font-size:11px;pointer-events:none;z-index:999;max-width:260px;display:none;line-height:1.5}
+.ts{color:var(--accent);font-weight:600;margin-bottom:3px}.tt{color:#a1a1aa}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#2a2a3a;border-radius:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>◈ PRISM — Saved Layout</h1>
+  <span id="stats">${frozenNodes.length.toLocaleString()} nodes · ${graphData.links.length.toLocaleString()} edges · saved ${new Date().toLocaleString()}</span>
+</header>
+<div id="panel">
+  <div><div class="sl">Source Filter</div><input type="text" id="sf" placeholder="substring…"></div>
+  <div><div class="sl">Min Confidence</div><div class="sr"><input type="range" id="cs" min="0" max="1" step="0.05" value="0"><span class="sv" id="cv">0.00</span></div></div>
+  <div><div class="sl">Edge Types</div><div id="elist"></div></div>
+</div>
+<div id="graph-wrap"><svg id="graph"></svg></div>
+<div id="tip"></div>
+<script>
+const EDGE_COLORS={supports:'#4CAF50',refutes:'#F44336',supersedes:'#FF9800',derives_from:'#9C27B0',specializes:'#2196F3',contrasts_with:'#E91E63',implements:'#00BCD4',generalizes:'#8D6E63',exemplifies:'#FDD835',qualifies:'#607D8B'};
+const srcColor=d3.scaleOrdinal(d3.schemeTableau10);
+let activeTypes=new Set(Object.keys(EDGE_COLORS));
+const DATA=${payload};
+
+// Build edge toggles
+const elist=document.getElementById('elist');
+for(const[type,color]of Object.entries(EDGE_COLORS)){
+  const l=document.createElement('label');l.className='er';
+  l.innerHTML=\`<input type="checkbox" checked data-e="\${type}"><span class="es" style="background:\${color}"></span><span>\${type.replace(/_/g,' ')}</span>\`;
+  elist.appendChild(l);
+}
+elist.addEventListener('change',()=>{activeTypes=new Set([...elist.querySelectorAll('input:checked')].map(e=>e.dataset.e));applyVis();});
+
+const slider=document.getElementById('cs');
+slider.addEventListener('input',()=>{document.getElementById('cv').textContent=parseFloat(slider.value).toFixed(2);applyVis();});
+document.getElementById('sf').addEventListener('input',applyVis);
+
+const nid=n=>typeof n==='object'?n.id:n;
+
+const wrap=document.getElementById('graph-wrap');
+const W=wrap.clientWidth,H=wrap.clientHeight;
+const svg=d3.select('#graph').attr('width',W).attr('height',H);
+const defs=svg.append('defs');
+for(const[type,color]of Object.entries(EDGE_COLORS)){
+  defs.append('marker').attr('id','a-'+type).attr('viewBox','0 -4 10 8').attr('refX',22).attr('refY',0).attr('markerWidth',7).attr('markerHeight',7).attr('orient','auto')
+    .append('path').attr('d','M0,-4L10,0L0,4').attr('fill',color);
+}
+const g=svg.append('g');
+const nodes=DATA.nodes.map(d=>({...d}));
+const links=DATA.links.map(d=>({...d}));
+const r=d=>Math.max(6,6+Math.sqrt(d.degree||0)*2.8);
+
+let lSel=g.append('g').selectAll('line').data(links).join('line')
+  .attr('stroke',d=>EDGE_COLORS[d.type]||'#555')
+  .attr('stroke-width',d=>Math.max(1.2,d.weight*3))
+  .attr('stroke-opacity',d=>0.45+d.weight*0.45)
+  .attr('marker-end',d=>'url(#a-'+d.type+')');
+
+const tip=document.getElementById('tip');
+let nSel=g.append('g').selectAll('circle').data(nodes).join('circle')
+  .attr('r',r).attr('fill',d=>srcColor(d.group)).attr('stroke','#0a0a0f').attr('stroke-width',1.5).attr('cursor','pointer')
+  .call(d3.drag()
+    .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.1).restart();d.fx=d.x;d.fy=d.y;})
+    .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+    .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}))
+  .on('mouseover',(e,d)=>{tip.innerHTML='<div class="ts">'+d.source+' p.'+(d.page||'?')+(d.section?' · '+d.section:'')+'</div><div class="tt">'+(d.preview||'')+'</div>';tip.style.display='block';tip.style.left=(e.clientX+15)+'px';tip.style.top=(e.clientY-8)+'px';})
+  .on('mousemove',e=>{tip.style.left=(e.clientX+15)+'px';tip.style.top=(e.clientY-8)+'px';})
+  .on('mouseout',()=>tip.style.display='none');
+
+// Start with saved positions, very low alpha so layout barely moves
+nodes.forEach(d=>{d.fx=null;d.fy=null;});
+const sim=d3.forceSimulation(nodes)
+  .force('link',d3.forceLink(links).id(d=>d.id).distance(100).strength(0.35))
+  .force('charge',d3.forceManyBody().strength(-220))
+  .force('center',d3.forceCenter(W/2,H/2))
+  .force('collide',d3.forceCollide(d=>r(d)+5))
+  .alpha(0.05).alphaDecay(0.05)
+  .on('tick',()=>{
+    lSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    nSel.attr('cx',d=>d.x).attr('cy',d=>d.y);
+  });
+
+const zoom=d3.zoom().scaleExtent([0.03,10]).on('zoom',e=>g.attr('transform',e.transform));
+svg.call(zoom);
+
+function applyVis(){
+  const minC=parseFloat(slider.value),sf=document.getElementById('sf').value.toLowerCase();
+  const vis=new Set();
+  nSel.each(d=>{if(!sf||d.source.toLowerCase().includes(sf))vis.add(d.id);});
+  nSel.style('opacity',d=>vis.has(d.id)?null:0.04);
+  lSel.style('display',d=>{const s=nid(d.source),t=nid(d.target);return(activeTypes.has(d.type)&&d.confidence>=minC&&vis.has(s)&&vis.has(t))?null:'none';});
+}
+<\/script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `prism-graph-${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+init();
+</script>
+</body>
+</html>

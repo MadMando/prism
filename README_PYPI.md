@@ -279,6 +279,27 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 
 ---
 
+## What's new in 0.2.6
+
+Adds the **local knowledge explorer** — an interactive force-directed graph UI for your knowledge base:
+
+```bash
+pip install prism-rag[lancedb,explorer]
+
+prism-explore \
+  --lancedb-path /path/to/lancedb \
+  --graph-path   /path/to/prism_graph.json.gz \
+  --embed-model  nomic-embed-text
+```
+
+Open `http://localhost:7860` to get:
+
+- **Force-directed epistemic graph** — 15k+ nodes, edges colored by type, sized by degree
+- **Edge type toggles** — show/hide supports, refutes, supersedes, specializes, etc.
+- **Source filter + confidence slider** — focus on specific documents or high-confidence edges
+- **Query mode** — type a question, watch activation spread; nodes glow by bucket (primary/supporting/contrasting/qualifying/superseded)
+- **Export HTML** — save the current layout as a standalone interactive file (no server required)
+
 ## What's new in 0.2.5
 
 Bug-fix and test-coverage release for the adapters shipped in 0.2.4:

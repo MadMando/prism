@@ -719,6 +719,15 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 
 ## Changelog
 
+### 0.2.6 — Local knowledge explorer (`prism-explore`)
+
+- **`prism-explore` CLI** — launches a local FastAPI + D3.js explorer on `http://localhost:7860`
+- **Interactive force-directed graph** — nodes sized by degree, colored by source, edges colored by epistemic type with directional arrows
+- **Query mode** — submit a question and watch spreading activation highlight nodes by epistemic bucket
+- **Filters** — edge type toggles, source substring filter, min-confidence slider
+- **Export HTML** — save the current layout as a fully self-contained interactive file
+- Install: `pip install prism-rag[lancedb,explorer]`
+
 ### 0.2.5 — Adapter bug fixes, tests, CI matrix
 
 - **LanceDB:** `get_chunks` no longer silently drops node IDs past the first 100 — queries are batched.
