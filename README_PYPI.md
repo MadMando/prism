@@ -489,6 +489,18 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 
 ## Changelog
 
+### 0.2.9 — Improved edge extraction prompt and build script
+
+- **Extraction prompt rewrite** — each of the 10 edge types now has a one-line definition; types grouped by valence; directionality clarified with examples; "most specific type wins" rule reduces `supports`/`specializes` confusion
+- **`build_graph.py`** — new `--no-filter`, `--filter-model`, `--filter-batch-size`, `--filter-max-concurrent` flags; defaults updated to local Ollama (`phi4:latest` for extraction, `llama3.1:8b` for Stage 1 filter); batch size default raised to 20
+- **`pandas` added as core dependency**
+- **FEVER benchmark** (`benchmarks/fever/`) — evaluate PRISM bucket routing against FEVER gold-evidence claims
+
+### 0.2.8 — CLI documentation and AI attribution
+
+- **README_PYPI.md rewritten** — full CLI quickstart and reference for all 6 commands with option tables
+- **AI Attribution** — READMEs and paper carry an [AI Attribution Toolkit](https://aiattribution.github.io/) statement
+
 ### 0.2.7 — NetworkX and Neo4j export
 
 ```python

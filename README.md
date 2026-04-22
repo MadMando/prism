@@ -724,6 +724,18 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 
 ## Changelog
 
+### 0.2.9 — Improved edge extraction prompt and build script
+
+- **Extraction prompt rewrite** — each of the 10 edge types now has a one-line definition; types are grouped by valence (reinforcing / modifying / dialectical / temporal); directionality is clarified with concrete examples; "most specific type wins" rule added to reduce `supports`/`specializes` ambiguity
+- **`scripts/build_graph.py`** — new flags: `--no-filter` (skip Stage 1 pre-filter), `--filter-model` (Ollama model for Stage 1, default `llama3.1:8b`), `--filter-batch-size`, `--filter-max-concurrent`; default LLM updated to local `phi4:latest` via Ollama; default batch size increased to 20
+- **`pandas` added as core dependency** (required by LanceDB adapter's `populate_graph_nodes`)
+- **FEVER benchmark** (`benchmarks/fever/`) — build corpus, run retrieval scoring, standalone scorer for Retrieval% and Bucket% per FEVER label
+
+### 0.2.8 — CLI documentation, AI attribution, PyPI rewrite
+
+- **README_PYPI.md rewritten** — full CLI reference for all 6 commands (`prism-build`, `prism-stats`, `prism-inspect`, `prism-explore`, `prism-viz`, `prism-export`) with option tables and quickstart
+- **AI Attribution** — both READMEs and the research paper now carry an [AI Attribution Toolkit](https://aiattribution.github.io/) statement (`AIA HAb SeCeNc Hin R Claude Sonnet 4.6 v1.0`)
+
 ### 0.2.7 — NetworkX and Neo4j export
 
 - **`EpistemicGraph.to_networkx()`** — returns a `nx.MultiDiGraph` copy; run PageRank, community detection, shortest paths, or any NetworkX algorithm directly

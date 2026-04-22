@@ -6,23 +6,29 @@ CLI tool to build (or rebuild) a PRISM epistemic graph from an existing
 LanceDB vector store.
 
 Usage:
+    # Local Ollama (default — phi4:14b for extraction, llama3.1:8b for Stage 1 filter):
     python scripts/build_graph.py \
         --lancedb-path  /path/to/lancedb \
         --graph-path    /path/to/prism_graph.json.gz \
-        --llm-api-key   sk-... \
-        --max-pairs     50000
+        --ollama-url    http://localhost:11434
 
-    # With a local Ollama model instead of DeepSeek:
+    # Remote API (e.g. DeepSeek or OpenAI):
     python scripts/build_graph.py \
         --lancedb-path  /path/to/lancedb \
         --graph-path    /path/to/prism_graph.json.gz \
-        --llm-base-url  http://localhost:11434/v1 \
-        --llm-model     gemma4:27b \
-        --max-pairs     50000 \
-        --force
+        --llm-base-url  https://api.deepseek.com \
+        --llm-model     deepseek-chat \
+        --llm-api-key   sk-... \
+        --no-filter
+
+    # Skip Stage 1 filter (faster, more Stage 2 calls):
+    python scripts/build_graph.py \
+        --lancedb-path  /path/to/lancedb \
+        --graph-path    /path/to/prism_graph.json.gz \
+        --no-filter
 
 Or install prism-rag and use the entry point:
-    prism-build --lancedb-path ... --graph-path ... --llm-api-key ...
+    prism-build --lancedb-path ... --graph-path ...
 """
 
 from __future__ import annotations
@@ -64,24 +70,42 @@ def main() -> None:
 
     # ── LLM extraction ────────────────────────────────────────────────────────
     parser.add_argument(
-        "--llm-base-url", default="https://api.deepseek.com",
+        "--llm-base-url", default="http://localhost:11434/v1",
         help="OpenAI-compatible API base URL for epistemic extraction",
     )
     parser.add_argument(
-        "--llm-model", default="deepseek-chat",
+        "--llm-model", default="phi4:latest",
         help="LLM model name for epistemic extraction",
     )
     parser.add_argument(
-        "--llm-api-key", default="",
-        help="API key for the LLM provider",
+        "--llm-api-key", default="ollama",
+        help="API key for the LLM provider (use any value for Ollama)",
     )
     parser.add_argument(
         "--min-confidence", type=float, default=0.65,
         help="Minimum confidence score to include an extracted edge",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=5,
+        "--batch-size", type=int, default=20,
         help="Number of chunk pairs per LLM extraction call",
+    )
+
+    # ── Stage 1 filter ────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--no-filter", action="store_true", default=False,
+        help="Skip Stage 1 local pre-filter (faster but more Stage 2 API calls)",
+    )
+    parser.add_argument(
+        "--filter-model", default="llama3.1:8b",
+        help="Ollama model for Stage 1 binary pre-filter",
+    )
+    parser.add_argument(
+        "--filter-batch-size", type=int, default=10,
+        help="Pairs per Stage 1 filter call",
+    )
+    parser.add_argument(
+        "--filter-max-concurrent", type=int, default=5,
+        help="Concurrent Stage 1 filter requests",
     )
 
     # ── Graph building ────────────────────────────────────────────────────────
@@ -122,16 +146,19 @@ def main() -> None:
         graph_path = graph_path.with_suffix(graph_path.suffix + ".json.gz")
 
     p = PRISM(
-        lancedb_path   = args.lancedb_path,
-        graph_path     = graph_path,
-        table_name     = args.table_name,
-        ollama_url     = args.ollama_url,
-        embed_model    = args.embed_model,
-        llm_base_url   = args.llm_base_url,
-        llm_model      = args.llm_model,
-        llm_api_key    = args.llm_api_key,
-        min_confidence = args.min_confidence,
-        batch_size     = args.batch_size,
+        lancedb_path          = args.lancedb_path,
+        graph_path            = graph_path,
+        table_name            = args.table_name,
+        ollama_url            = args.ollama_url,
+        embed_model           = args.embed_model,
+        llm_base_url          = args.llm_base_url,
+        llm_model             = args.llm_model,
+        llm_api_key           = args.llm_api_key,
+        min_confidence        = args.min_confidence,
+        batch_size            = args.batch_size,
+        filter_model          = args.filter_model,
+        filter_batch_size     = args.filter_batch_size,
+        filter_max_concurrent = args.filter_max_concurrent,
     )
 
     p.build(
@@ -139,6 +166,7 @@ def main() -> None:
         cross_source_only = not args.all_sources,
         max_pairs         = args.max_pairs,
         force             = args.force,
+        use_filter        = not args.no_filter,
     )
 
     stats = p.stats()
