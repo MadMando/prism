@@ -73,9 +73,11 @@ class PRISM:
         max_retries:    int   = 3,
         failure_log_path: Optional[str] = None,
         # ── Stage 1 filter settings ───────────────────────────────────
-        filter_model:         str = "llama3.1:8b",  # fast Ollama model for Stage 1 pre-filter
+        filter_model:         str = "llama3.1:8b",
+        filter_base_url:      Optional[str] = None,  # defaults to ollama_url/v1
+        filter_api_key:       str = "ollama",
         filter_batch_size:    int = 10,
-        filter_max_concurrent:int = 5,
+        filter_max_concurrent:int = 20,
         # ── Retrieval settings ────────────────────────────────────────
         hops:               int   = 3,
         decay:              float = 0.7,
@@ -114,9 +116,11 @@ class PRISM:
             failure_log_path  = failure_log_path,
         )
 
+        _filter_base = filter_base_url or (ollama_url.rstrip("/") + "/v1")
         self._filter_kwargs = dict(
-            ollama_url     = ollama_url,
+            base_url       = _filter_base,
             model          = filter_model,
+            api_key        = filter_api_key,
             batch_size     = filter_batch_size,
             max_concurrent = filter_max_concurrent,
         )

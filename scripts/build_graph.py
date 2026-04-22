@@ -12,14 +12,16 @@ Usage:
         --graph-path    /path/to/prism_graph.json.gz \
         --ollama-url    http://localhost:11434
 
-    # Remote API (e.g. DeepSeek or OpenAI):
+    # Remote API (e.g. DeepSeek) for both stages — fast for large corpora:
     python scripts/build_graph.py \
-        --lancedb-path  /path/to/lancedb \
-        --graph-path    /path/to/prism_graph.json.gz \
-        --llm-base-url  https://api.deepseek.com \
-        --llm-model     deepseek-chat \
-        --llm-api-key   sk-... \
-        --no-filter
+        --lancedb-path    /path/to/lancedb \
+        --graph-path      /path/to/prism_graph.json.gz \
+        --llm-base-url    https://api.deepseek.com \
+        --llm-model       deepseek-chat \
+        --llm-api-key     sk-... \
+        --filter-base-url https://api.deepseek.com/v1 \
+        --filter-model    deepseek-chat \
+        --filter-api-key  sk-...
 
     # Skip Stage 1 filter (faster, more Stage 2 calls):
     python scripts/build_graph.py \
@@ -93,18 +95,26 @@ def main() -> None:
     # ── Stage 1 filter ────────────────────────────────────────────────────────
     parser.add_argument(
         "--no-filter", action="store_true", default=False,
-        help="Skip Stage 1 local pre-filter (faster but more Stage 2 API calls)",
+        help="Skip Stage 1 pre-filter (more Stage 2 API calls, faster for small corpora)",
     )
     parser.add_argument(
         "--filter-model", default="llama3.1:8b",
-        help="Ollama model for Stage 1 binary pre-filter",
+        help="Model for Stage 1 binary pre-filter",
+    )
+    parser.add_argument(
+        "--filter-base-url", default=None,
+        help="OpenAI-compatible API base URL for Stage 1 filter (default: --ollama-url/v1)",
+    )
+    parser.add_argument(
+        "--filter-api-key", default="ollama",
+        help="API key for Stage 1 filter endpoint (use any value for Ollama)",
     )
     parser.add_argument(
         "--filter-batch-size", type=int, default=10,
         help="Pairs per Stage 1 filter call",
     )
     parser.add_argument(
-        "--filter-max-concurrent", type=int, default=5,
+        "--filter-max-concurrent", type=int, default=20,
         help="Concurrent Stage 1 filter requests",
     )
 
@@ -157,6 +167,8 @@ def main() -> None:
         min_confidence        = args.min_confidence,
         batch_size            = args.batch_size,
         filter_model          = args.filter_model,
+        filter_base_url       = args.filter_base_url,
+        filter_api_key        = args.filter_api_key,
         filter_batch_size     = args.filter_batch_size,
         filter_max_concurrent = args.filter_max_concurrent,
     )
