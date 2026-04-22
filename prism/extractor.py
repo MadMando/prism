@@ -36,25 +36,50 @@ from .graph import EpistemicGraph
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT = (
-    "You are an expert knowledge analyst specialising in identifying epistemic "
-    "relationships between text passages. You are precise, concise, and only "
-    "assert relationships with high confidence."
+    "You are an expert knowledge analyst identifying epistemic relationships "
+    "between text passages. You classify how one passage relates to another "
+    "in terms of evidence, logic, or epistemic stance — not just topic similarity. "
+    "Be precise and conservative: only assert a relationship when it is clear "
+    "and meaningful. Topical overlap alone is not sufficient."
 )
 
 _BATCH_PROMPT = """\
-Analyse the following {n} chunk pairs and identify epistemic relationships.
+Analyse the following {n} chunk pairs and classify their epistemic relationship.
 
-Epistemic relationship types:
-  supports | refutes | supersedes | derives_from | specializes |
-  contrasts_with | implements | generalizes | exemplifies | qualifies
+RELATIONSHIP TYPES (choose exactly one, or none):
 
-Rules:
-- Only assert if the relationship is CLEAR and MEANINGFUL — topical similarity alone is not enough
-- Specify directionality: which chunk is source (makes the claim), which is target (claim is about)
-- Respond with a JSON array of EXACTLY {n} objects, one per pair, in order
+  Reinforcing — A strengthens or elaborates B:
+    supports      : A provides direct evidence or reasoning that B's claim is correct
+    derives_from  : A is logically or conceptually derived from B (B is the foundation)
+    specializes   : A is a specific case or application of the broader concept in B
+    implements    : A is the concrete tool/method that realises B's abstract concept
+    exemplifies   : A is a concrete example that illustrates B's general point
+    generalizes   : A is a broader abstraction of which B is one instance
 
-Each object:
-  {{"pair_index": N, "has_relationship": true,  "source_id": "...", "target_id": "...", "edge_type": "...", "confidence": 0.0–1.0, "rationale": "one sentence"}}
+  Modifying — A nuances but does not negate B:
+    qualifies     : A adds conditions, exceptions, or scope limits to B's claim
+
+  Dialectical — A challenges B:
+    contrasts_with: A and B take different positions on the same topic (both may be valid)
+    refutes       : A directly contradicts or undermines B's central claim
+
+  Temporal — A supersedes B:
+    supersedes    : A replaces B because A is newer, corrected, or more authoritative
+
+DIRECTIONALITY:
+  source_id = the chunk that MAKES the relationship active (the acting chunk)
+  target_id = the chunk whose claim is being acted upon
+  Example: if A cites B as evidence → A supports B → source=A, target=B
+  Example: if A is a specific case of B → A specializes B → source=A, target=B
+
+RULES:
+- Assign a relationship only if it is CLEAR and UNAMBIGUOUS
+- Topical similarity alone → has_relationship: false
+- Pick the MOST SPECIFIC type that fits (prefer specializes over supports when both apply)
+- Each response object must include pair_index even when has_relationship is false
+
+OUTPUT FORMAT — a JSON array of exactly {n} objects in order:
+  {{"pair_index": N, "has_relationship": true, "source_id": "...", "target_id": "...", "edge_type": "...", "confidence": 0.0–1.0, "rationale": "one sentence max"}}
   {{"pair_index": N, "has_relationship": false}}
 
 PAIRS:
