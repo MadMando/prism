@@ -489,6 +489,12 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 
 ## Changelog
 
+### 0.2.10 — Thicker graph edges + `prism-viz --format html`
+
+- **`prism-viz --format html`** — generates a self-contained interactive HTML viewer with graph data embedded; viewable offline or via htmlpreview.github.io
+- **Thicker edge rendering** — stroke-width updated to `Math.max(2.5, w*5)` in both the live explorer and HTML exports
+- **Updated demo** — badge links to fresh 1,000-node Quinn graph sample
+
 ### 0.2.9 — Improved edge extraction prompt and build script
 
 - **Extraction prompt rewrite** — each of the 10 edge types now has a one-line definition; types grouped by valence; directionality clarified with examples; "most specific type wins" rule reduces `supports`/`specializes` confusion

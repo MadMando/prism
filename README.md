@@ -20,8 +20,8 @@
 
 ---
 
-[![Interactive graph demo](examples/prism_sample.png)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/MadMando/prism/main/examples/prism-graph-2026-04-21.html)
-<div align="center"><sub>↑ Click to open the interactive epistemic graph demo (1,000 nodes, 1,326 edges — sample from a 15,543-node corpus)</sub></div>
+[![Interactive graph demo](examples/prism_sample.png)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/MadMando/prism/main/examples/quinn-graph-2026-04-23.html)
+<div align="center"><sub>↑ Click to open the interactive epistemic graph demo (1,000 nodes, 891 edges — sample from a 15,543-node corpus)</sub></div>
 
 ---
 
@@ -723,6 +723,12 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 ---
 
 ## Changelog
+
+### 0.2.10 — Thicker graph edges + `prism-viz --format html`
+
+- **`prism-viz --format html`** — new output mode generates a fully self-contained interactive HTML viewer with the graph data embedded; no server required; viewable via htmlpreview.github.io or any browser
+- **Thicker edge rendering** — stroke-width formula updated from `Math.max(1.2, w*3)` to `Math.max(2.5, w*5)` in both the live explorer and the exported HTML; edges are now clearly visible on dark backgrounds
+- **Updated demo** — README badge links to a fresh 1,000-node / 891-edge Quinn graph sample
 
 ### 0.2.9 — Improved edge extraction prompt and build script
 

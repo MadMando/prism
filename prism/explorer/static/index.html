@@ -467,8 +467,8 @@ function renderGraph(raw) {
   linksSel = gEl.append('g').selectAll('line')
     .data(links).join('line')
     .attr('stroke', d => EDGE_COLORS[d.type] || '#555')
-    .attr('stroke-width', d => Math.max(1.2, d.weight * 3))
-    .attr('stroke-opacity', d => 0.45 + d.weight * 0.45)
+    .attr('stroke-width', d => Math.max(2.5, d.weight * 5))
+    .attr('stroke-opacity', d => 0.6 + d.weight * 0.4)
     .attr('marker-end', d => `url(#arr-${d.type})`);
 
   nodesSel = gEl.append('g').selectAll('circle')
@@ -805,8 +805,8 @@ const r=d=>Math.max(6,6+Math.sqrt(d.degree||0)*2.8);
 
 let lSel=g.append('g').selectAll('line').data(links).join('line')
   .attr('stroke',d=>EDGE_COLORS[d.type]||'#555')
-  .attr('stroke-width',d=>Math.max(1.2,d.weight*3))
-  .attr('stroke-opacity',d=>0.45+d.weight*0.45)
+  .attr('stroke-width',d=>Math.max(2.5,d.weight*5))
+  .attr('stroke-opacity',d=>0.6+d.weight*0.4)
   .attr('marker-end',d=>'url(#a-'+d.type+')');
 
 const tip=document.getElementById('tip');
