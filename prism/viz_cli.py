@@ -204,13 +204,15 @@ def _export_html(sub, output_path: Path) -> None:
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 :root{{--bg:#0a0a0f;--surface:#111118;--border:#1e1e2e;--text:#d4d4d8;--muted:#52525b;--accent:#a78bfa}}
-body{{font-family:'SF Mono','Fira Code',monospace;background:var(--bg);color:var(--text);height:100vh;display:grid;grid-template-columns:200px 1fr;grid-template-rows:44px 1fr;overflow:hidden}}
+body{{font-family:'SF Mono','Fira Code',monospace;background:var(--bg);color:var(--text);height:100vh;display:grid;grid-template-columns:220px 1fr 300px;grid-template-rows:44px 1fr;overflow:hidden}}
 header{{grid-column:1/-1;background:#0d0d1a;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px}}
 header h1{{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.12em}}
 #stats{{font-size:11px;color:var(--muted);margin-left:auto}}
-#panel{{background:var(--surface);border-right:1px solid var(--border);padding:14px 12px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}}
+#panel-left{{background:var(--surface);border-right:1px solid var(--border);padding:14px 12px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}}
 #graph-wrap{{position:relative;overflow:hidden;background:var(--bg)}}
 #graph{{width:100%;height:100%;display:block}}
+#panel-right{{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}}
+#detail-pane{{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}}
 .sl{{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}}
 input[type=text]{{background:#0d0d1a;border:1px solid var(--border);color:var(--text);border-radius:4px;font-family:inherit;font-size:12px;padding:5px 8px;width:100%}}
 input[type=text]:focus{{outline:none;border-color:var(--accent)}}
@@ -220,6 +222,15 @@ input[type=text]:focus{{outline:none;border-color:var(--accent)}}
 .er{{display:flex;align-items:center;gap:7px;font-size:11px;cursor:pointer;padding:2px 0;user-select:none}}
 .er input{{accent-color:var(--accent);margin:0;flex-shrink:0}}
 .es{{width:10px;height:10px;border-radius:2px;flex-shrink:0}}
+.empty-state{{color:var(--muted);font-size:12px;text-align:center;margin-top:48px;line-height:1.9}}
+.nd-src{{font-size:12px;color:var(--accent);font-weight:600;margin-bottom:4px;word-break:break-all}}
+.nd-meta{{font-size:11px;color:#71717a;line-height:1.7;margin-bottom:8px}}
+.nd-preview{{font-size:12px;color:#d4d4d8;line-height:1.6;margin-bottom:10px}}
+.nd-edges-hdr{{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:8px 0 5px}}
+.nd-edge{{font-size:11px;padding:4px 0;border-bottom:1px solid #1a1a2a;color:#71717a;display:flex;justify-content:space-between;align-items:center;gap:6px}}
+.nd-edge-type{{font-weight:600;flex-shrink:0}}
+.nd-edge-peer{{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#a1a1aa}}
+.nd-conf{{color:var(--muted);font-size:10px;flex-shrink:0}}
 #tip{{position:fixed;background:rgba(13,13,26,.97);border:1px solid #2a2a4a;border-radius:5px;padding:8px 11px;font-size:11px;pointer-events:none;z-index:999;max-width:260px;display:none;line-height:1.5}}
 .ts{{color:var(--accent);font-weight:600;margin-bottom:3px}}.tt{{color:#a1a1aa}}
 ::-webkit-scrollbar{{width:3px}}::-webkit-scrollbar-thumb{{background:#2a2a3a;border-radius:2px}}
@@ -230,18 +241,34 @@ input[type=text]:focus{{outline:none;border-color:var(--accent)}}
   <h1>◈ PRISM — Epistemic Graph</h1>
   <span id="stats">{stats_text}</span>
 </header>
-<div id="panel">
+<div id="panel-left">
   <div><div class="sl">Source Filter</div><input type="text" id="sf" placeholder="substring…"></div>
   <div><div class="sl">Min Confidence</div><div class="sr"><input type="range" id="cs" min="0" max="1" step="0.05" value="0"><span class="sv" id="cv">0.00</span></div></div>
   <div><div class="sl">Edge Types</div><div id="elist"></div></div>
 </div>
 <div id="graph-wrap"><svg id="graph"></svg></div>
+<div id="panel-right">
+  <div id="detail-pane">
+    <div class="empty-state" id="empty-msg">◈<br>Click a node<br>to see details</div>
+  </div>
+</div>
 <div id="tip"></div>
 <script>
 const EDGE_COLORS={{supports:'#4CAF50',refutes:'#F44336',supersedes:'#FF9800',derives_from:'#9C27B0',specializes:'#2196F3',contrasts_with:'#E91E63',implements:'#00BCD4',generalizes:'#8D6E63',exemplifies:'#FDD835',qualifies:'#607D8B'}};
 const srcColor=d3.scaleOrdinal(d3.schemeTableau10);
 let activeTypes=new Set(Object.keys(EDGE_COLORS));
 const DATA={payload};
+
+// Index links by node id for fast detail lookup
+const linksByNode={{}};
+DATA.links.forEach(lk=>{{
+  const s=typeof lk.source==='object'?lk.source.id:lk.source;
+  const t=typeof lk.target==='object'?lk.target.id:lk.target;
+  if(!linksByNode[s])linksByNode[s]=[];
+  if(!linksByNode[t])linksByNode[t]=[];
+  linksByNode[s].push({{...lk,_dir:'out',_peer:t}});
+  linksByNode[t].push({{...lk,_dir:'in', _peer:s}});
+}});
 
 // Build edge toggles
 const elist=document.getElementById('elist');
@@ -259,7 +286,7 @@ document.getElementById('sf').addEventListener('input',applyVis);
 const nid=n=>typeof n==='object'?n.id:n;
 
 const wrap=document.getElementById('graph-wrap');
-const W=wrap.clientWidth||window.innerWidth-200;
+const W=wrap.clientWidth||window.innerWidth-520;
 const H=wrap.clientHeight||window.innerHeight-44;
 const svg=d3.select('#graph').attr('width',W).attr('height',H);
 const defs=svg.append('defs');
@@ -279,21 +306,49 @@ let lSel=g.append('g').selectAll('line').data(links).join('line')
   .attr('marker-end',d=>'url(#a-'+d.type+')');
 
 const tip=document.getElementById('tip');
+let selectedId=null;
+
+function showDetail(d){{
+  selectedId=d.id;
+  nSel.attr('stroke',nd=>nd.id===d.id?'var(--accent)':'#0a0a0f').attr('stroke-width',nd=>nd.id===d.id?2.5:1.5);
+  const pane=document.getElementById('detail-pane');
+  const edgelist=(linksByNode[d.id]||[]).sort((a,b)=>b.confidence-a.confidence);
+  const edgeRows=edgelist.slice(0,40).map(lk=>{{
+    const col=EDGE_COLORS[lk.type]||'#888';
+    const arrow=lk._dir==='out'?'→':'←';
+    const peer=lk._peer.split('/').pop().replace(/_/g,' ');
+    return `<div class="nd-edge"><span class="nd-edge-type" style="color:${{col}}">${{lk.type.replace(/_/g,' ')}} ${{arrow}}</span><span class="nd-edge-peer" title="${{lk._peer}}">${{peer}}</span><span class="nd-conf">${{(lk.confidence*100).toFixed(0)}}%</span></div>`;
+  }}).join('');
+  pane.innerHTML=`
+    <div class="nd-src">${{d.source.replace(/[.]pdf$/i,'').replace(/[.]txt$/i,'')}}</div>
+    <div class="nd-meta">p.${{d.page||'?'}}${{d.section?' · '+d.section:''}}<br>degree: ${{d.degree||0}}</div>
+    <div class="nd-preview">${{d.preview||''}}</div>
+    ${{edgeRows?'<div class="nd-edges-hdr">Edges ('+edgelist.length+')</div>'+edgeRows:''}}
+  `;
+}}
+
 let nSel=g.append('g').selectAll('circle').data(nodes).join('circle')
   .attr('r',r).attr('fill',d=>srcColor(d.group)).attr('stroke','#0a0a0f').attr('stroke-width',1.5).attr('cursor','pointer')
   .call(d3.drag()
     .on('start',(e,d)=>{{if(!e.active)sim.alphaTarget(0.1).restart();d.fx=d.x;d.fy=d.y;}})
     .on('drag',(e,d)=>{{d.fx=e.x;d.fy=e.y;}})
     .on('end',(e,d)=>{{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}}))
-  .on('mouseover',(e,d)=>{{tip.innerHTML='<div class="ts">'+d.source+' p.'+(d.page||'?')+(d.section?' · '+d.section:'')+'</div><div class="tt">'+(d.preview||'')+'</div>';tip.style.display='block';tip.style.left=(e.clientX+15)+'px';tip.style.top=(e.clientY-8)+'px';}})
+  .on('click',(e,d)=>{{e.stopPropagation();showDetail(d);}})
+  .on('mouseover',(e,d)=>{{if(d.id===selectedId)return;tip.innerHTML='<div class="ts">'+d.source+' p.'+(d.page||'?')+(d.section?' · '+d.section:'')+'</div><div class="tt">'+(d.preview||'').slice(0,120)+'</div>';tip.style.display='block';tip.style.left=(e.clientX+15)+'px';tip.style.top=(e.clientY-8)+'px';}})
   .on('mousemove',e=>{{tip.style.left=(e.clientX+15)+'px';tip.style.top=(e.clientY-8)+'px';}})
   .on('mouseout',()=>tip.style.display='none');
 
+svg.on('click',()=>{{
+  selectedId=null;
+  nSel.attr('stroke','#0a0a0f').attr('stroke-width',1.5);
+  document.getElementById('detail-pane').innerHTML='<div class="empty-state" id="empty-msg">◈<br>Click a node<br>to see details</div>';
+}});
+
 const sim=d3.forceSimulation(nodes)
-  .force('link',d3.forceLink(links).id(d=>d.id).distance(100).strength(0.35))
-  .force('charge',d3.forceManyBody().strength(-220))
+  .force('link',d3.forceLink(links).id(d=>d.id).distance(80).strength(0.4))
+  .force('charge',d3.forceManyBody().strength(-180))
   .force('center',d3.forceCenter(W/2,H/2))
-  .force('collide',d3.forceCollide(d=>r(d)+5))
+  .force('collide',d3.forceCollide(d=>r(d)+4))
   .alpha(0.6).alphaDecay(0.02)
   .on('tick',()=>{{
     lSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
