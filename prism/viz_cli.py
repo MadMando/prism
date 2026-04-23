@@ -241,7 +241,8 @@ document.getElementById('sf').addEventListener('input',applyVis);
 const nid=n=>typeof n==='object'?n.id:n;
 
 const wrap=document.getElementById('graph-wrap');
-const W=wrap.clientWidth,H=wrap.clientHeight;
+const W=wrap.clientWidth||window.innerWidth-200;
+const H=wrap.clientHeight||window.innerHeight-44;
 const svg=d3.select('#graph').attr('width',W).attr('height',H);
 const defs=svg.append('defs');
 for(const[type,color]of Object.entries(EDGE_COLORS)){{
