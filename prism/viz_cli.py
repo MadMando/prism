@@ -144,8 +144,25 @@ def _export_d3(sub, output_path: Path) -> None:
         print(f"[prism-viz] Load with: d3.json('{output_path}').then(data => ...)")
 
 
+_D3_URL = "https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"
+_D3_CACHE: str | None = None
+
+
+def _get_d3() -> str:
+    """Return D3 v7 minified source, fetching once and caching in memory."""
+    global _D3_CACHE
+    if _D3_CACHE is not None:
+        return _D3_CACHE
+    import urllib.request
+    print(f"[prism-viz] fetching D3 for inline embedding from {_D3_URL} …")
+    with urllib.request.urlopen(_D3_URL, timeout=30) as resp:
+        _D3_CACHE = resp.read().decode("utf-8")
+    print(f"[prism-viz] D3 fetched ({len(_D3_CACHE)//1024} KB)")
+    return _D3_CACHE
+
+
 def _export_html(sub, output_path: Path) -> None:
-    """Export a self-contained interactive HTML viewer with embedded graph data."""
+    """Export a fully self-contained interactive HTML viewer with embedded graph data and D3."""
     degree = dict(sub.degree())
 
     nodes = []
@@ -176,13 +193,14 @@ def _export_html(sub, output_path: Path) -> None:
     n_nodes    = len(nodes)
     n_links    = len(links)
     stats_text = f"{n_nodes:,} nodes · {n_links:,} edges · exported {today}"
+    d3_js      = _get_d3()
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>PRISM Graph — {today}</title>
-<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script>{d3_js}</script>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 :root{{--bg:#0a0a0f;--surface:#111118;--border:#1e1e2e;--text:#d4d4d8;--muted:#52525b;--accent:#a78bfa}}
