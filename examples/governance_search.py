@@ -1,18 +1,27 @@
 """
 examples/governance_search.py
 ------------------------------
-Demonstrates PRISM against the OpenClaw governance corpus
-(the 14k-chunk LanceDB at /home/mando/.openclaw/knowledge/lancedb/).
+Demonstrates PRISM against a governance corpus in LanceDB.
 
-Run (after pip install -e /home/mando/prism):
+Configuration via environment variables (recommended) or edit the
+constants below directly:
+
+    export LANCEDB_PATH=/path/to/lancedb
+    export GRAPH_PATH=/path/to/prism_graph.json.gz
+    export OLLAMA_URL=http://localhost:11434      # or remote Ollama host
+    export EMBED_MODEL=nomic-embed-text
+    export LLM_BASE_URL=https://api.deepseek.com
+    export LLM_MODEL=deepseek-chat
+    export DEEPSEEK_API_KEY=sk-...
+
+Run:
     python examples/governance_search.py
-
-Or with a specific query:
     python examples/governance_search.py "what is data stewardship"
 """
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -21,16 +30,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from prism import PRISM
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+# ── Configuration — override via environment variables ─────────────────────────
 
-LANCEDB_PATH = "/home/mando/.openclaw/knowledge/lancedb"
-GRAPH_PATH   = "/home/mando/.openclaw/knowledge/prism_graph.json.gz"
+LANCEDB_PATH = os.environ.get("LANCEDB_PATH", "/path/to/your/lancedb")
+GRAPH_PATH   = os.environ.get("GRAPH_PATH",   "/path/to/your/prism_graph.json.gz")
 
-OLLAMA_URL   = "http://100.114.143.109:11434"
-EMBED_MODEL  = "qwen3-embedding:4b"
+OLLAMA_URL   = os.environ.get("OLLAMA_URL",   "http://localhost:11434")
+EMBED_MODEL  = os.environ.get("EMBED_MODEL",  "nomic-embed-text")
 
-LLM_BASE_URL = "https://api.deepseek.com"
-LLM_MODEL    = "deepseek-chat"
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
+LLM_MODEL    = os.environ.get("LLM_MODEL",    "deepseek-chat")
 LLM_API_KEY  = ""   # Set via env: export DEEPSEEK_API_KEY=sk-...
 
 # ── Queries to demonstrate PRISM ──────────────────────────────────────────────
@@ -45,8 +54,6 @@ DEMO_QUERIES = [
 
 
 def main() -> None:
-    import os
-
     api_key = os.environ.get("DEEPSEEK_API_KEY", LLM_API_KEY)
 
     query = sys.argv[1] if len(sys.argv) > 1 else DEMO_QUERIES[0]
