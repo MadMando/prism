@@ -165,14 +165,16 @@ prism-build --lancedb-path PATH --graph-path PATH [options]
 | `--ollama-url` | `http://localhost:11434` | Ollama base URL |
 | `--embed-model` | `nomic-embed-text` | Embedding model (must match ingest-time model) |
 
-**Stage 1 — local filter (fast, free):**
+**Stage 1 — pre-filter (any OpenAI-compatible endpoint):**
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--filter-model` | `llama3.1:8b` | Ollama model for binary pre-filter |
-| `--filter-batch-size` | `10` | Pairs per Ollama call |
-| `--filter-concurrency` | `5` | Concurrent Ollama requests |
-| `--no-filter` | off | Skip Stage 1 (if Ollama is unavailable) |
+| `--filter-model` | `llama3.1:8b` | Model for binary pre-filter |
+| `--filter-base-url` | _(ollama-url)/v1_ | OpenAI-compatible base URL for Stage 1 |
+| `--filter-api-key` | `ollama` | API key for Stage 1 endpoint |
+| `--filter-batch-size` | `10` | Pairs per filter API call |
+| `--filter-max-concurrent` | `20` | Concurrent Stage 1 requests |
+| `--no-filter` | off | Skip Stage 1 pre-filter entirely |
 
 **Stage 2 — LLM extraction:**
 
@@ -247,15 +249,15 @@ The explorer lets you:
 
 ---
 
-### `prism-viz` — Export for Gephi or D3
+### `prism-viz` — Export for Gephi, D3, or self-contained HTML
 
 ```
-prism-viz GRAPH_PATH [--format gexf|d3] [--output PATH] [options]
+prism-viz GRAPH_PATH [--format gexf|d3|html] [--output PATH] [options]
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--format` | `d3` | `d3` (JSON for D3.js) or `gexf` (Gephi) |
+| `--format` | `d3` | `d3` (JSON for D3.js), `gexf` (Gephi), or `html` (self-contained interactive viewer) |
 | `--output`, `-o` | auto | Output file; use `-` to write D3 JSON to stdout |
 | `--edge-types` | all | Comma-separated list: `supports,refutes,supersedes,…` |
 | `--min-confidence` | `0.0` | Drop edges below this threshold |
@@ -263,6 +265,9 @@ prism-viz GRAPH_PATH [--format gexf|d3] [--output PATH] [options]
 | `--max-nodes` | unlimited | Keep the top-N highest-degree nodes only |
 
 ```bash
+# Self-contained HTML viewer — share offline or via htmlpreview.github.io
+prism-viz prism_graph.json.gz --format html --max-nodes 1000 --output graph.html
+
 # Export high-confidence supports/refutes edges for one document set
 prism-viz prism_graph.json.gz \
   --format gexf \
@@ -273,6 +278,8 @@ prism-viz prism_graph.json.gz \
 # Pipe D3 JSON into another tool
 prism-viz prism_graph.json.gz --output - | jq '.nodes | length'
 ```
+
+The `--format html` output embeds D3 v7 inline — no CDN or server required. The file opens in any browser and shows a three-panel layout: filters (left), force-directed graph (centre), node detail on click (right).
 
 ---
 
@@ -488,6 +495,13 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 ---
 
 ## Changelog
+
+### 0.2.11 — HTML export fixes + Stage 1 OpenAI-compatible API
+
+- **HTML export fixed** — `prism-viz --format html` now inlines D3 v7 at generation time; fully self-contained, works in htmlpreview.github.io, offline, and sandboxed iframes
+- **Three-panel HTML layout** — matches `prism-explore`: filters (left), graph (centre), node detail on click (right)
+- **Stage 1 filter** — now accepts any OpenAI-compatible API via `filter_base_url` / `filter_api_key`; backward-compatible with Ollama
+- **CLI fix** — corrected `--filter-max-concurrent` flag name in docs (was listed as `--filter-concurrency`)
 
 ### 0.2.10 — Thicker graph edges + `prism-viz --format html`
 

@@ -297,9 +297,9 @@ PRISM works **on top of your existing vector store**. If you already have a Lanc
 
 The build phase uses a **two-stage pipeline** to extract epistemic relationships efficiently:
 
-**Stage 1 — Ollama pre-filter (fast, free)**
+**Stage 1 — fast pre-filter (binary yes/no)**
 
-An Ollama model screens every candidate pair with a binary question: *does any epistemic relationship exist here at all?* About half of all candidate pairs are topically similar but not epistemically related — Stage 1 discards these before any API call is made. Runs via Ollama, costs nothing.
+A fast model screens every candidate pair with a binary question: *does any epistemic relationship exist here at all?* About half of all candidate pairs are topically similar but not epistemically related — Stage 1 discards these before any Stage 2 API call is made. Stage 1 supports any OpenAI-compatible endpoint (Ollama local, DeepSeek, OpenAI, etc.).
 
 **Stage 2 — Async LLM classification**
 
@@ -321,7 +321,7 @@ Confirmed relationships (above confidence threshold) become typed, weighted edge
 
 | Item | Estimate |
 |------|----------|
-| Stage 1 Ollama calls (free) | ~5,000 |
+| Stage 1 filter calls | ~5,000 |
 | Stage 2 LLM calls after filter (batch=20) | ~1,250 |
 | Input tokens | ~12M–18M |
 | Output tokens | ~2M–4M |
@@ -331,49 +331,44 @@ Confirmed relationships (above confidence threshold) become typed, weighted edge
 
 **Checkpoint & resume** — if the build is interrupted, PRISM saves a `.partial.json.gz` checkpoint and resumes automatically from where it left off.
 
-**Stage 1 model check** — PRISM verifies the filter model is available in Ollama before starting. If it isn't, it prints a clear warning listing available models and skips Stage 1 rather than silently doing nothing. Pass `--filter-model <name>` or `filter_model=` to override.
+**Stage 1 API** — Stage 1 uses any OpenAI-compatible endpoint. Point `--filter-base-url` at Ollama (default), DeepSeek, or any compatible provider. When using a paid API for both stages, the filter only saves money if it reduces Stage 2 calls enough to offset Stage 1 cost — for local Ollama it is effectively free.
 
 ---
 
 ## Choosing a Stage 1 Filter Model
 
-Stage 1 only pays off if the filter model is **fast**. The goal is a binary yes/no decision per pair in well under a second — if your model is slower than the API you're filtering for, skip Stage 1 entirely with `--no-filter`.
+Stage 1 only pays off if the filter is **fast**. The goal is a binary yes/no decision per pair in well under a second. Stage 1 accepts any OpenAI-compatible endpoint via `--filter-base-url` / `filter_base_url=`.
 
-**Rule of thumb: use a model under ~10 GB.** On typical hardware these complete in 0.2–0.8 seconds per call. Models above 20–30 GB (especially cloud-streamed ones) can take 2–4 seconds per call, making Stage 1 slower than it saves.
-
-**Good filter model choices:**
+**Using local Ollama (free):** use a model under ~8 GB — small models complete each binary call in under a second. Models above ~10 GB can take 2–4 seconds per call and negate the benefit of filtering.
 
 | Model | Size | Notes |
 |-------|------|-------|
-| `llama3.1:8b` | 4.9 GB | **Recommended default** — fast, widely available, strong instruction following |
-| `llama3.2:3b` | 2.0 GB | Faster still, good for binary yes/no |
-| `qwen3.5:latest` | 6.6 GB | Strong instruction following |
+| `llama3.1:8b` | 4.9 GB | **Recommended default** — fast, strong instruction following |
+| `llama3.2:3b` | 2.0 GB | Fastest; good for binary yes/no |
 | `gemma3:4b` | 3.3 GB | Lightweight, accurate |
 
-**Avoid as filter models:** models above ~6 GB — at that size, per-call latency often exceeds the API savings, especially over a network connection. Cloud-streamed models (`*:cloud`, `*:1t`) are never suitable.
-
-**Stage 1 requires true parallel GPU inference.** `OLLAMA_NUM_PARALLEL` only helps if your GPU has enough VRAM to hold multiple simultaneous model instances. If the GPU is already near capacity running a single 8B model, Ollama will queue extra requests and concurrency has no effect. If Stage 1 isn't reducing your wall time, use `--no-filter` — Stage 2 alone typically finishes in ~30 minutes on a 50k-pair corpus.
-
-**If your Ollama server is remote** (not localhost), point `ollama_url` at it:
-
+**Using a remote Ollama server:**
 ```python
 p = PRISM(
-    ollama_url    = "http://your-ollama-host:11434",  # remote Ollama
-    embed_model   = "qwen3-embedding:4b",             # must match your ingest-time model
-    filter_model  = "gemma4:latest",                  # fast model for Stage 1
+    ollama_url    = "http://your-ollama-host:11434",
+    embed_model   = "qwen3-embedding:4b",
+    filter_model  = "llama3.1:8b",
     ...
 )
 ```
 
-Or via CLI:
-```bash
-prism-build \
-    --ollama-url    http://your-ollama-host:11434 \
-    --filter-model  gemma4:latest \
+**Using a paid API (e.g. DeepSeek) for Stage 1:**
+```python
+p = PRISM(
+    filter_base_url = "https://api.deepseek.com/v1",
+    filter_model    = "deepseek-chat",
+    filter_api_key  = "sk-...",
     ...
+)
 ```
+Note: when both stages use a paid API, Stage 1 adds cost — it only saves money if it reduces Stage 2 calls more than it costs. For most corpora, using a fast local model for Stage 1 and a paid API for Stage 2 is the most cost-effective combination.
 
-**No suitable model? Skip Stage 1:**
+**Skip Stage 1 entirely:**
 ```bash
 prism-build --no-filter ...   # async Stage 2 only, ~30 min for 50k pairs
 ```
@@ -450,7 +445,7 @@ prism/
 │   ├── result.py           EpistemicResult + EpistemicChunk dataclasses
 │   ├── cli.py              prism-build CLI
 │   ├── inspect_cli.py      prism-stats + prism-inspect diagnostic CLIs
-│   ├── viz_cli.py          prism-viz — export to Gephi GEXF or D3 JSON
+│   ├── viz_cli.py          prism-viz — export to Gephi GEXF, D3 JSON, or self-contained HTML
 │   └── adapters/
 │       ├── base.py         VectorAdapter Protocol (@runtime_checkable)
 │       ├── embedder.py     Embedder — reusable Ollama + OpenAI-compatible embedding helper
@@ -615,10 +610,16 @@ The reranker runs after epistemic bucketing as a final pass over all retrieved c
 
 ## Graph Visualisation
 
-Export the epistemic graph for visual exploration in Gephi or any D3.js-based tool:
+Export the epistemic graph for visual exploration:
 
 ```bash
-# D3 JSON (force-directed graph) — default
+# Self-contained interactive HTML — share via GitHub or any browser (no server needed)
+prism-viz prism_graph.json.gz --format html --output graph.html
+
+# Cap node count for large graphs (keeps top-N by degree)
+prism-viz prism_graph.json.gz --format html --max-nodes 1000 --output graph.html
+
+# D3 JSON (force-directed graph) — load with d3.json()
 prism-viz prism_graph.json.gz --output graph.json
 
 # Gephi GEXF — open directly in Gephi for layout and clustering
@@ -629,12 +630,11 @@ prism-viz prism_graph.json.gz --format d3 --edge-types supports,refutes --min-co
 
 # Filter: only chunks from one source
 prism-viz prism_graph.json.gz --format d3 --source-filter "dmbok"
-
-# Cap size for large graphs (keeps top-N nodes by degree)
-prism-viz prism_graph.json.gz --format d3 --max-nodes 500
 ```
 
-**D3 JSON format** — nodes have `id`, `source`, `group` (= source, for colour), and `degree`; links have `source`, `target`, `type`, `weight`, and `confidence`. Load directly with `d3.json()` and `d3.forceSimulation`.
+**HTML format** — generates a fully self-contained interactive viewer with D3 v7 and graph data embedded. Three-panel layout: filters (left), force-directed graph (centre), node detail on click (right). Viewable offline or hosted on htmlpreview.github.io.
+
+**D3 JSON format** — nodes have `id`, `source`, `group`, and `degree`; links have `source`, `target`, `type`, `weight`, and `confidence`. Load directly with `d3.json()` and `d3.forceSimulation`.
 
 **GEXF format** — standard Gephi format. Edge type, weight, confidence, and rationale are exported as edge attributes. Open in Gephi: `File → Open → graph.gexf`.
 
@@ -715,7 +715,7 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 - [x] Reranker hook for cross-encoder / LLM-based reranking
 - [x] `prism-stats` and `prism-inspect` diagnostic CLIs
 - [x] Additional vector store adapters (Chroma, Qdrant, Weaviate, pgvector)
-- [x] Graph visualisation (`prism-viz` CLI — exports to Gephi GEXF / D3 JSON)
+- [x] Graph visualisation (`prism-viz` CLI — exports to Gephi GEXF / D3 JSON / self-contained HTML)
 - [x] Adapter bug fixes + unit test coverage + CI matrix across all extras (0.2.5)
 - [x] Export to Neo4j / NetworkX formats (`prism-export` CLI + Python API)
 - [ ] Retrieval quality benchmarks on standard QA datasets
@@ -723,6 +723,13 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 ---
 
 ## Changelog
+
+### 0.2.11 — HTML export fixes + Stage 1 filter OpenAI-compatible API
+
+- **HTML export fixed** — `prism-viz --format html` now inlines D3 v7 at generation time instead of loading from CDN; the exported file is fully self-contained and works in htmlpreview.github.io, offline, and sandboxed iframes
+- **Three-panel layout** — exported HTML now matches the live `prism-explore` layout: left panel (filters), centre (graph), right panel (node detail on click — source, page, preview, all edges with type/direction/confidence)
+- **Stage 1 filter** — now accepts any OpenAI-compatible API endpoint via `filter_base_url` / `filter_api_key` (previously Ollama-native only); backward-compatible — Ollama still works as before
+- **Docs** — Stage 1 section updated to reflect paid-API option; `--filter-max-concurrent` flag name corrected in CLI reference
 
 ### 0.2.10 — Thicker graph edges + `prism-viz --format html`
 

@@ -52,7 +52,7 @@
   \href{https://github.com/MadMando/prism}{https://github.com/MadMando/prism}
 }
 
-\date{April 2026 — revised for v0.2.5}
+\date{May 2026 — revised for v0.2.11}
 
 \begin{document}
 
@@ -156,12 +156,13 @@ standard vector retrieval.
         (\S\ref{sec:activation}).
   \item An \emph{epistemic bucketing} output schema that structures
         retrieval results for downstream LLM consumption (\S\ref{sec:bucketing}).
-  \item An open-source Python library (\texttt{prism-rag} on PyPI, v0.2.7)
+  \item An open-source Python library (\texttt{prism-rag} on PyPI, v0.2.11)
         with a pluggable \texttt{VectorAdapter} protocol, built-in adapters
         for LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector, diagnostic
         CLIs (\texttt{prism-build}, \texttt{prism-stats}, \texttt{prism-inspect},
         \texttt{prism-viz}, \texttt{prism-export}), NetworkX and Neo4j export,
         a local interactive graph explorer (\texttt{prism-explore}),
+        self-contained HTML graph export (\texttt{prism-viz --format html}),
         and a self-contained synthetic benchmark.
 \end{itemize}
 
