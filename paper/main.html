@@ -161,7 +161,7 @@
   .references { font-size: 10pt; }
   .ref-entry { margin: 0.5em 0; padding-left: 2em; text-indent: -2em; }
 
-  /* ── Bucket colours ──────────────────────────────────────────────────── */
+  /* ── Bucket colors ──────────────────────────────────────────────────── */
   .bucket-primary    { color: #1a4f8a; font-weight: bold; }
   .bucket-supporting { color: #1a6e2c; font-weight: bold; }
   .bucket-contrast   { color: #8b1a1a; font-weight: bold; }
@@ -210,7 +210,7 @@
     each assigned a propagation weight and an epistemic valence.
     At retrieval time, a query activates seed nodes via vector similarity; activation then propagates
     through the typed graph for <em>h</em> hops with per-type decay. Nodes reached by
-    <em>multiple independent seed paths</em> receive a convergence bonus — operationalising the
+    <em>multiple independent seed paths</em> receive a convergence bonus — operationalizing the
     insight from memory consolidation theory that knowledge accessible from many contexts is more
     reliably grounded. Results are returned not as a ranked list but as five structured
     <em>epistemic buckets</em>: <span class="bucket-primary">PRIMARY</span>,
@@ -398,7 +398,7 @@ standard vector retrieval.</p>
     <tr><td><code>SUPPORTS</code></td>      <td>positive</td>    <td style="text-align:center">0.90</td><td><em>p</em><sub>i</sub> provides evidence reinforcing <em>p</em><sub>j</sub></td></tr>
     <tr><td><code>DERIVES_FROM</code></td>  <td>positive</td>    <td style="text-align:center">0.85</td><td><em>p</em><sub>i</sub> is logically derived from <em>p</em><sub>j</sub></td></tr>
     <tr><td><code>SPECIALIZES</code></td>   <td>positive</td>    <td style="text-align:center">0.80</td><td><em>p</em><sub>i</sub> is a specific instance of <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>IMPLEMENTS</code></td>    <td>positive</td>    <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> concretely realises the concept in <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>IMPLEMENTS</code></td>    <td>positive</td>    <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> concretely realizes the concept in <em>p</em><sub>j</sub></td></tr>
     <tr><td><code>EXEMPLIFIES</code></td>   <td>positive</td>    <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> is a concrete example illustrating <em>p</em><sub>j</sub></td></tr>
     <tr><td><code>GENERALIZES</code></td>   <td>positive</td>    <td style="text-align:center">0.70</td><td><em>p</em><sub>i</sub> is a broader abstraction of <em>p</em><sub>j</sub></td></tr>
     <tr><td><code>QUALIFIES</code></td>     <td>qualifying</td>  <td style="text-align:center">0.65</td><td><em>p</em><sub>i</sub> adds conditions or exceptions to <em>p</em><sub>j</sub></td></tr>
@@ -419,7 +419,7 @@ standard vector retrieval.</p>
 <p>Graph construction is an offline phase executed once per corpus.</p>
 
 <p><strong>Step 1: Candidate pair generation.</strong>
-For each passage <em>p</em><sub>i</sub>, we retrieve its <em>k</em>-nearest neighbours by cosine
+For each passage <em>p</em><sub>i</sub>, we retrieve its <em>k</em>-nearest neighbors by cosine
 similarity over the embedded corpus. By default, extraction spans <em>all</em> passage pairs
 (<code>cross_source_only=False</code>), including intra-document pairs. Early experiments restricted
 extraction to cross-source pairs (src(<em>p</em><sub>i</sub>) ≠ src(<em>p</em><sub>j</sub>)), which
@@ -441,13 +441,13 @@ An optional Stage 1 fast-model pre-filter (binary yes/no via Ollama) can halve A
 local, low-latency model (&lt;5 GB) is available; remote Ollama instances with GPU VRAM constraints
 cannot run true parallel inference and the filter offers no throughput benefit in that setting.</p>
 
-<p><strong>Step 3: Graph serialisation.</strong>
-The completed graph is serialised to gzip-compressed JSON. At retrieval time it loads into memory
+<p><strong>Step 3: Graph serialization.</strong>
+The completed graph is serialized to gzip-compressed JSON. At retrieval time it loads into memory
 in a single pass, sub-second for graphs up to 100k nodes.</p>
 
 <h3>3.3 Typed Spreading Activation</h3>
 
-<p><strong>Seed initialisation.</strong>
+<p><strong>Seed initialization.</strong>
 The top-<em>K</em><sub>s</sub> passages by vector similarity are designated seeds:</p>
 
 <div class="eq">
@@ -456,7 +456,7 @@ The top-<em>K</em><sub>s</sub> passages by vector similarity are designated seed
 </div>
 
 <p><strong>Propagation.</strong>
-For <em>h</em> hops, activation propagates from each active node to its graph neighbours,
+For <em>h</em> hops, activation propagates from each active node to its graph neighbors,
 weighted by edge type and attenuated by a global decay factor δ:</p>
 
 <div class="eq">
@@ -468,8 +468,8 @@ weighted by edge type and attenuated by a global decay factor δ:</p>
 <p>
   where <em>w</em>(<em>r</em>) is the propagation weight for edge type <em>r</em> and
   <em>c</em><sub><em>ij</em></sub> is the LLM-assigned confidence for that edge (stored as a single
-  combined weight in the serialised graph). Activation <em>accumulates</em> (sum-pool) across all
-  incoming neighbours, so nodes corroborated by multiple paths receive proportionally higher scores.
+  combined weight in the serialized graph). Activation <em>accumulates</em> (sum-pool) across all
+  incoming neighbors, so nodes corroborated by multiple paths receive proportionally higher scores.
   Propagation also traverses edges in the <em>reverse</em> direction, scaled by a penalty of 0.6,
   allowing downstream passages to activate their upstream sources at reduced strength.
 </p>
@@ -586,7 +586,7 @@ bucket assignment.</p>
 <p><strong>Spreading activation vs. Personalized PageRank.</strong>
 PageRank and spreading activation are both diffusion processes on graphs, but they differ in a
 critical way: PageRank is <em>global</em> — it assigns a single importance score that converges
-to the stationary distribution of a random walk, marginalising over all starting points.
+to the stationary distribution of a random walk, marginalizing over all starting points.
 Spreading activation is <em>source-aware</em> — each seed's contribution is tracked independently
 throughout propagation. This source-awareness enables convergence scoring: we can ask not just
 "how activated is this node?" but "how many <em>independent</em> perspectives on the query
@@ -655,7 +655,7 @@ Query: "accountability mechanisms in distributed systems"
   We applied PRISM to a governance knowledge corpus of 30,533 passages from 14 distinct source
   documents (DAMA-DMBOK, Ladley's <em>Data Governance</em>, Plotkin's <em>Data Stewardship</em>,
   erwin documentation, and related references). We ran two complete builds on the same corpus to
-  characterise the effect of candidate-pair scope on graph density. Build 1 used cross-source-only
+  characterize the effect of candidate-pair scope on graph density. Build 1 used cross-source-only
   filtering (49,571 pairs); Build 2 included all pairs, <em>k</em> = 8, no source restriction
   (~160,760 pairs). Table 3 reports construction statistics for both builds.
 </p>
@@ -730,7 +730,7 @@ one-time cost) yields a 2.8× denser graph and meaningfully better retrieval qua
 <div style="margin: 1.4em auto; max-width: 580px;">
 <p style="text-align:center; font-style:italic; font-size:10pt; margin-bottom:0.5em;">
   Figure 1: Edge type distribution — Build 2 (9,989 edges, governance corpus).
-  Colours indicate epistemic valence: <span style="color:#2c6fad">■ positive</span> &nbsp;
+  Colors indicate epistemic valence: <span style="color:#2c6fad">■ positive</span> &nbsp;
   <span style="color:#8b1a1a">■ dialectical</span> &nbsp;
   <span style="color:#8b6914">■ qualifying</span> &nbsp;
   <span style="color:#5a3a7a">■ temporal</span>.
