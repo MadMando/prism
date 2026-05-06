@@ -186,7 +186,7 @@
      Claude Sonnet 4.6 / Opus 4.7 — adapter architecture, multi-backend refactor, manuscript revisions</p>
   <p class="affil"><a href="https://github.com/MadMando/prism">https://github.com/MadMando/prism</a> &nbsp;·&nbsp;
      <a href="https://pypi.org/project/prism-rag/">https://pypi.org/project/prism-rag/</a></p>
-  <p class="date">May 2026 — revised for v0.2.11</p>
+  <p class="date">May 2026 — revised for v0.2.13</p>
 </div>
 
 <!-- ── Abstract ───────────────────────────────────────────────────────────── -->
@@ -285,7 +285,7 @@ standard vector retrieval.</p>
       from multiple independent query perspectives (§3.2).</li>
   <li>An <em>epistemic bucketing</em> output schema that structures retrieval results for
       downstream LLM consumption (§3.3).</li>
-  <li>An open-source Python library (<code>prism-rag</code> v0.2.11) with built-in adapters for
+  <li>An open-source Python library (<code>prism-rag</code> v0.2.13) with built-in adapters for
       LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector, diagnostic CLIs
       (<code>prism-build</code>, <code>prism-stats</code>, <code>prism-inspect</code>,
       <code>prism-viz</code>, <code>prism-export</code>), NetworkX and Neo4j export,
@@ -396,14 +396,14 @@ standard vector retrieval.</p>
   </thead>
   <tbody>
     <tr><td><code>SUPPORTS</code></td>      <td>positive</td>    <td style="text-align:center">0.90</td><td><em>p</em><sub>i</sub> provides evidence reinforcing <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>DERIVES_FROM</code></td>  <td>positive</td>    <td style="text-align:center">0.80</td><td><em>p</em><sub>i</sub> is logically derived from <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>GENERALIZES</code></td>   <td>positive</td>    <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> is a broader abstraction of <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>SPECIALIZES</code></td>   <td>positive</td>    <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> is a specific instance of <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>IMPLEMENTS</code></td>    <td>positive</td>    <td style="text-align:center">0.70</td><td><em>p</em><sub>i</sub> concretely realises the concept in <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>EXEMPLIFIES</code></td>   <td>positive</td>    <td style="text-align:center">0.65</td><td><em>p</em><sub>i</sub> is a concrete example illustrating <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>QUALIFIES</code></td>     <td>qualifying</td>  <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> adds conditions or exceptions to <em>p</em><sub>j</sub></td></tr>
-    <tr><td><code>CONTRASTS_WITH</code></td><td>dialectical</td> <td style="text-align:center">0.60</td><td><em>p</em><sub>i</sub> and <em>p</em><sub>j</sub> take different positions</td></tr>
-    <tr><td><code>REFUTES</code></td>       <td>dialectical</td> <td style="text-align:center">0.60</td><td><em>p</em><sub>i</sub> directly contradicts <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>DERIVES_FROM</code></td>  <td>positive</td>    <td style="text-align:center">0.85</td><td><em>p</em><sub>i</sub> is logically derived from <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>SPECIALIZES</code></td>   <td>positive</td>    <td style="text-align:center">0.80</td><td><em>p</em><sub>i</sub> is a specific instance of <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>IMPLEMENTS</code></td>    <td>positive</td>    <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> concretely realises the concept in <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>EXEMPLIFIES</code></td>   <td>positive</td>    <td style="text-align:center">0.75</td><td><em>p</em><sub>i</sub> is a concrete example illustrating <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>GENERALIZES</code></td>   <td>positive</td>    <td style="text-align:center">0.70</td><td><em>p</em><sub>i</sub> is a broader abstraction of <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>QUALIFIES</code></td>     <td>qualifying</td>  <td style="text-align:center">0.65</td><td><em>p</em><sub>i</sub> adds conditions or exceptions to <em>p</em><sub>j</sub></td></tr>
+    <tr><td><code>CONTRASTS_WITH</code></td><td>dialectical</td> <td style="text-align:center">0.55</td><td><em>p</em><sub>i</sub> and <em>p</em><sub>j</sub> take different positions</td></tr>
+    <tr><td><code>REFUTES</code></td>       <td>dialectical</td> <td style="text-align:center">0.50</td><td><em>p</em><sub>i</sub> directly contradicts <em>p</em><sub>j</sub></td></tr>
     <tr class="tbl-bottom"><td><code>SUPERSEDES</code></td><td>temporal</td><td style="text-align:center">0.40</td><td><em>p</em><sub>i</sub> replaces <em>p</em><sub>j</sub> (newer / more authoritative)</td></tr>
   </tbody>
 </table>
@@ -461,13 +461,17 @@ weighted by edge type and attenuated by a global decay factor δ:</p>
 
 <div class="eq">
   <em>a</em><sup>(<em>t</em>)</sup>(<em>p</em><sub>j</sub>) =
-  max<sub>(<em>p</em><sub>i</sub>, <em>p</em><sub>j</sub>, <em>r</em>, <em>c</em>) ∈ ℰ</sub>
-  [ <em>a</em><sup>(<em>t</em>−1)</sup>(<em>p</em><sub>i</sub>) · <em>w</em>(<em>r</em>) · <em>c</em> · δ<sup><em>t</em></sup> ]
+  Σ<sub>(<em>p</em><sub>i</sub>, <em>p</em><sub>j</sub>, <em>r</em>) ∈ ℰ</sub>
+  <em>a</em><sup>(<em>t</em>−1)</sup>(<em>p</em><sub>i</sub>) · <em>w</em>(<em>r</em>) · <em>c</em><sub><em>ij</em></sub> · δ<sup><em>t</em></sup>
 </div>
 
 <p>
-  We use max-pool rather than sum-pool to prevent high-degree nodes from accumulating
-  disproportionate activation from many weak neighbours.
+  where <em>w</em>(<em>r</em>) is the propagation weight for edge type <em>r</em> and
+  <em>c</em><sub><em>ij</em></sub> is the LLM-assigned confidence for that edge (stored as a single
+  combined weight in the serialised graph). Activation <em>accumulates</em> (sum-pool) across all
+  incoming neighbours, so nodes corroborated by multiple paths receive proportionally higher scores.
+  Propagation also traverses edges in the <em>reverse</em> direction, scaled by a penalty of 0.6,
+  allowing downstream passages to activate their upstream sources at reduced strength.
 </p>
 
 <p><strong>Convergence tracking.</strong>
@@ -482,13 +486,15 @@ The convergence score is the fraction of seeds that independently activated node
 The final score combines activation magnitude with convergence:</p>
 
 <div class="eq">
-  <em>f</em>(<em>p</em><sub>j</sub>) = (1 − λ) · <em>a</em>(<em>p</em><sub>j</sub>) + λ · conv(<em>p</em><sub>j</sub>)
+  <em>f</em>(<em>p</em><sub>j</sub>) = <em>a</em>(<em>p</em><sub>j</sub>) · (1 + λ · conv(<em>p</em><sub>j</sub>))
 </div>
 
 <p>
-  where λ is the convergence weight (default λ = 0.4). Nodes with high convergence —
-  reached by multiple independent query perspectives — are promoted relative to nodes activated
-  strongly by a single seed path.
+  where λ is the convergence weight (default λ = 0.4). This multiplicative formulation preserves
+  the full magnitude of activation while applying a convergence <em>bonus</em>: a node reached by
+  every seed is scaled by up to 1 + λ = 1.4, whereas a node activated by only one seed receives
+  no bonus. Nodes with high convergence — corroborated by multiple independent query perspectives —
+  are thus promoted without suppressing strongly-activated unique matches.
 </p>
 
 <h3>3.4 Epistemic Bucketing</h3>

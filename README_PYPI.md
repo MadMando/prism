@@ -496,6 +496,12 @@ PRISM(embed_api_url="https://api.openai.com/v1/embeddings", embed_api_key="sk-..
 
 ## Changelog
 
+### 0.2.13 — Paper technical accuracy corrections
+
+- **Propagation weights** — Table 1 corrected to match `edges.py`: `derives_from` 0.85, `specializes` 0.80, `implements`/`exemplifies` 0.75, `generalizes` 0.70, `qualifies` 0.65, `contrasts_with` 0.55, `refutes` 0.50
+- **Sum-pool propagation** — §3.3 corrected from max-pool to sum-pool; reverse-edge propagation (0.6 penalty, enabled by default) now documented
+- **Multiplicative scoring** — final score formula corrected to `a·(1 + λ·conv)` from convex combination
+
 ### 0.2.12 — Paper bibliography corrections
 
 - **LightRAG citation** — corrected fabricated author list to actual 5 authors: Guo, Xia, Yu, Ao, Huang (arXiv:2410.05779)

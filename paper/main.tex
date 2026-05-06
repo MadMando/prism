@@ -52,7 +52,7 @@
   \href{https://github.com/MadMando/prism}{https://github.com/MadMando/prism}
 }
 
-\date{May 2026 — revised for v0.2.11}
+\date{May 2026 — revised for v0.2.13}
 
 \begin{document}
 
@@ -156,7 +156,7 @@ standard vector retrieval.
         (\S\ref{sec:activation}).
   \item An \emph{epistemic bucketing} output schema that structures
         retrieval results for downstream LLM consumption (\S\ref{sec:bucketing}).
-  \item An open-source Python library (\texttt{prism-rag} on PyPI, v0.2.11)
+  \item An open-source Python library (\texttt{prism-rag} on PyPI, v0.2.13)
         with a pluggable \texttt{VectorAdapter} protocol, built-in adapters
         for LanceDB, ChromaDB, Qdrant, Weaviate, and pgvector, diagnostic
         CLIs (\texttt{prism-build}, \texttt{prism-stats}, \texttt{prism-inspect},
@@ -275,14 +275,14 @@ activation flows across edges of that type, and an
 \textbf{Type} & \textbf{Valence} & \textbf{Weight} & \textbf{Semantics} \\
 \midrule
 \textsc{supports}       & positive    & 0.90 & $p_i$ provides evidence reinforcing $p_j$ \\
-\textsc{derives\_from}  & positive    & 0.80 & $p_i$ is logically derived from $p_j$ \\
-\textsc{generalizes}    & positive    & 0.75 & $p_i$ is a broader abstraction of $p_j$ \\
-\textsc{specializes}    & positive    & 0.75 & $p_i$ is a specific instance of $p_j$ \\
-\textsc{implements}     & positive    & 0.70 & $p_i$ concretely realises the concept in $p_j$ \\
-\textsc{exemplifies}    & positive    & 0.65 & $p_i$ is a concrete example illustrating $p_j$ \\
-\textsc{qualifies}      & qualifying  & 0.75 & $p_i$ adds conditions or exceptions to $p_j$ \\
-\textsc{contrasts\_with}& dialectical & 0.60 & $p_i$ and $p_j$ take different positions \\
-\textsc{refutes}        & dialectical & 0.60 & $p_i$ directly contradicts $p_j$ \\
+\textsc{derives\_from}  & positive    & 0.85 & $p_i$ is logically derived from $p_j$ \\
+\textsc{specializes}    & positive    & 0.80 & $p_i$ is a specific instance of $p_j$ \\
+\textsc{implements}     & positive    & 0.75 & $p_i$ concretely realises the concept in $p_j$ \\
+\textsc{exemplifies}    & positive    & 0.75 & $p_i$ is a concrete example illustrating $p_j$ \\
+\textsc{generalizes}    & positive    & 0.70 & $p_i$ is a broader abstraction of $p_j$ \\
+\textsc{qualifies}      & qualifying  & 0.65 & $p_i$ adds conditions or exceptions to $p_j$ \\
+\textsc{contrasts\_with}& dialectical & 0.55 & $p_i$ and $p_j$ take different positions \\
+\textsc{refutes}        & dialectical & 0.50 & $p_i$ directly contradicts $p_j$ \\
 \textsc{supersedes}     & temporal    & 0.40 & $p_i$ replaces $p_j$ (newer / more authoritative) \\
 \bottomrule
 \end{tabular}
@@ -351,11 +351,17 @@ For $h$ hops, activation propagates from each currently-active node
 to its graph neighbours, weighted by edge type and attenuated by a
 global decay factor $\delta$:
 \[
-  a^{(t)}(p_j) = \max_{(p_i, p_j, r, c) \in \mathcal{E}}
-    \left[ a^{(t-1)}(p_i) \cdot w(r) \cdot c \cdot \delta^t \right]
+  a^{(t)}(p_j) = \sum_{(p_i, p_j, r) \in \mathcal{E}}
+    a^{(t-1)}(p_i) \cdot w(r) \cdot c_{ij} \cdot \delta^t
 \]
-We use a max-pool rather than sum-pool to prevent high-degree nodes from
-accumulating disproportionate activation from many weak neighbours.
+where $w(r)$ is the propagation weight for edge type $r$ and $c_{ij}$ is
+the LLM-assigned confidence for that edge (stored as a single combined
+weight $w(r) \cdot c_{ij}$ in the serialised graph).  Activation
+\emph{accumulates} across all incoming neighbours, so nodes corroborated
+by multiple paths receive proportionally higher scores.  Propagation also
+traverses edges in the \emph{reverse} direction (from $p_j$ back to
+$p_i$), scaled by a reverse-edge penalty of $0.6$ to prevent
+backward-flow from dominating forward evidence.
 
 \paragraph{Convergence tracking.}
 Throughout propagation, we track the set of seed nodes that have
@@ -373,12 +379,15 @@ activated node $p_j$:
 \paragraph{Final scoring.}
 The final score combines activation magnitude with convergence:
 \[
-  f(p_j) = (1 - \lambda) \cdot a(p_j) + \lambda \cdot \text{conv}(p_j)
+  f(p_j) = a(p_j) \cdot \bigl(1 + \lambda \cdot \text{conv}(p_j)\bigr)
 \]
 where $\lambda$ is the convergence weight (default $\lambda = 0.4$).
-Nodes with high convergence — reached by multiple independent query
-perspectives — are promoted relative to nodes activated strongly by a
-single seed.
+This multiplicative formulation preserves the full magnitude of
+activation while applying a convergence \emph{bonus}: a node reached by
+every seed is scaled by up to $1 + \lambda = 1.4$, whereas a node
+activated by a single seed receives no bonus.  Nodes with high
+convergence — corroborated by multiple independent query perspectives —
+are thus promoted without suppressing strongly-activated unique matches.
 
 \subsection{Epistemic Bucketing}
 \label{sec:bucketing}

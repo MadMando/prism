@@ -724,6 +724,13 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 
 ## Changelog
 
+### 0.2.13 — Paper technical accuracy corrections
+
+- **Propagation weights** — Table 1 corrected to match `edges.py` ground truth: `derives_from` 0.85, `specializes` 0.80, `implements`/`exemplifies` 0.75, `generalizes` 0.70, `qualifies` 0.65, `contrasts_with` 0.55, `refutes` 0.50
+- **Sum-pool propagation** — §3.3 corrected from max-pool to sum-pool (matching `activation.py`); nodes corroborated by multiple paths now accurately described as accumulating activation
+- **Multiplicative scoring** — final score formula corrected from convex combination `(1−λ)·a + λ·conv` to multiplicative bonus `a·(1 + λ·conv)` (matching `result.py`)
+- **Reverse edge propagation** — §3.3 now documents bidirectional traversal with 0.6 reverse-edge penalty (was undocumented despite being enabled by default)
+
 ### 0.2.12 — Paper bibliography corrections
 
 - **LightRAG citation** — corrected fabricated author list to actual 5 authors: Guo, Xia, Yu, Ao, Huang (arXiv:2410.05779)
