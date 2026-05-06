@@ -724,6 +724,11 @@ We do not currently publish retrieval quality metrics comparing PRISM against st
 
 ## Changelog
 
+### 0.2.12 — Paper bibliography corrections
+
+- **LightRAG citation** — corrected fabricated author list to actual 5 authors: Guo, Xia, Yu, Ao, Huang (arXiv:2410.05779)
+- **Brachman & Levesque (1985)** — corrected from "authors" to "(Eds.)" — *Readings in Knowledge Representation* is an edited volume
+
 ### 0.2.11 — HTML export fixes + Stage 1 filter OpenAI-compatible API
 
 - **HTML export fixed** — `prism-viz --format html` now inlines D3 v7 at generation time instead of loading from CDN; the exported file is fully self-contained and works in htmlpreview.github.io, offline, and sandboxed iframes
